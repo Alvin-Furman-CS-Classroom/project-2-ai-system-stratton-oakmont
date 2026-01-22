@@ -122,19 +122,6 @@ The modules follow both logical dependency (rules → parameters → evolution �
 
 ---
 
-## Data Sources
-
-**Market Price Data:** Historical stock/ETF prices (open, high, low, close, volume) for backtesting and technical indicator calculation. Available from free APIs like Yahoo Finance or Alpha Vantage.
-
-**News Sentiment Data:** Alpha Vantage Market News & Sentiment API (free tier available):
-- Up to 50 articles per request with sentiment scores
-- Filter by stock ticker (e.g., `tickers=AAPL,SPY`)
-- Pre-computed sentiment scores (-1 to 1) and labels
-- Topic categorization (earnings, economy, technology, etc.)
-- No paywall for basic usage (rate-limited to 25 requests/day on free tier)
-
----
-
 ## Glossary
 
 **Market Indicators:**
