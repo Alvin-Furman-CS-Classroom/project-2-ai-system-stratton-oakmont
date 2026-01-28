@@ -6,6 +6,7 @@ from typing import Optional
 
 
 class TradingAction(str, Enum):
+    # Strings are easy to print and save (and match the project spec).
     BUY = "BUY"
     SELL = "SELL"
     HOLD = "HOLD"

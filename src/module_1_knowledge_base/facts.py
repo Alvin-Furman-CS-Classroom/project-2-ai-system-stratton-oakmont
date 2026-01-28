@@ -24,6 +24,7 @@ class FactDefinition:
 
 
 DEFAULT_PARAMS: Params = {
+    # Simple defaults. Later modules can tune these numbers and pass them as `params`.
     "rsi_oversold": 30.0,
     "rsi_overbought": 70.0,
     "macd_epsilon": 0.0,
@@ -33,6 +34,7 @@ DEFAULT_PARAMS: Params = {
 
 
 def default_fact_definitions() -> List[FactDefinition]:
+    # Each one turns indicator numbers into a named True/False fact.
     return [
         FactDefinition(
             name="RSI_OVERSOLD",
@@ -91,10 +93,12 @@ def indicators_to_facts(
     evaluate positive and negated literals.
     """
 
+    # Start with defaults, then overwrite any thresholds the caller provides.
     p = dict(DEFAULT_PARAMS)
     if params:
         p.update(params)
 
+    # You can pass custom fact definitions if you want different facts.
     defs = list(fact_definitions) if fact_definitions is not None else default_fact_definitions()
     return {d.name: bool(d.predicate(indicators, p)) for d in defs}
 

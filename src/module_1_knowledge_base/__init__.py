@@ -5,6 +5,7 @@ Public API:
 - `evaluate_rules_on_indicators(...)` -> BUY/SELL/HOLD + fired rules + inference chain
 """
 
+# Re-export things so other code can import from `src.module_1_knowledge_base`.
 from .engine import (
     HornRule,
     InferenceResult,
