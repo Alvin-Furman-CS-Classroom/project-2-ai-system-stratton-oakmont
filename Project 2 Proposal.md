@@ -1,128 +1,102 @@
 # Intelligent Trading Agent: Strategy Discovery Through Search and Adaptive Risk Management
 
-## System Overview
+## Overview
 
 This system helps users find profitable trading strategies for stocks and ETFs and manages risk when executing trades. It uses five AI modules that work together, each solving a specific part of the problem.
 
-**Phase 1: Finding Good Strategies**
+**Phase 1: Finding Good Strategies** — The system needs rules for when to buy and sell. Module 1 represents these rules using propositional logic—simple "if-then" statements like "if price momentum is high AND volatility is low, then buy." Module 2 searches through thousands of possible rule variations to find ones that look promising, using A* and Beam Search to avoid testing every single combination. Module 3 takes the best candidates and improves them further using genetic algorithms—a technique that mimics evolution by combining successful strategies and introducing small changes over many generations.
 
-First, the system needs rules for when to buy and sell. Module 1 represents these rules using propositional logic—simple "if-then" statements like "if price momentum is high AND volatility is low, then buy." Module 2 searches through thousands of possible rule variations to find ones that look promising, using A* and Beam Search to avoid testing every single combination. Module 3 takes the best candidates and improves them further using genetic algorithms—a technique that mimics evolution by combining successful strategies and introducing small changes over many generations.
-
-**Phase 2: Trading Smartly**
-
-Once good strategies exist, the system needs to apply them wisely. Module 4 uses supervised learning to classify market sentiment from news data, helping select the right strategy for current conditions. Module 5 uses reinforcement learning to decide position sizes, learning which allocations lead to the best long-term results.
+**Phase 2: Trading Smartly** — Once good strategies exist, the system needs to apply them wisely. Module 4 uses supervised learning to classify market sentiment from news data, helping select the right strategy for current conditions. Module 5 uses reinforcement learning to decide position sizes, learning which allocations lead to the best long-term results.
 
 Together, these modules form a complete pipeline: discover rules, optimize them, understand market sentiment, and manage risk.
 
-## Modules
+## Team
 
-### Module 1: Trading Rule Knowledge Base
+- Member 1
+- Member 2
+- Member 3 (if applicable)
 
-**Topics:** Propositional Logic (Knowledge Bases, Inference, Forward Chaining)
-
-**Input:** Current market indicators (RSI, MACD, MA20, MA50, Volume—see Glossary) and a set of trading rules expressed in propositional logic (CNF format).
-
-**Output:** A trading action (BUY, SELL, or HOLD) along with the rules that fired and the logical inference chain showing how the conclusion was derived.
-
-**Integration:** This module defines the *structure* of trading rules that Modules 2 and 3 will optimize. It receives optimized parameters from later modules and applies them to current market data. The logical framework ensures decisions are explainable—users can see exactly why the system recommended an action.
-
-**Prerequisites:** Propositional Logic (Weeks 1-1.5): entailment, knowledge bases, inference methods, forward chaining, CNF representation.
-
----
-
-### Module 2: Strategy Parameter Search
-
-**Topics:** Informed Search (A*, Beam Search, Heuristics)
-
-**Input:** Hard-coded parameter ranges defining the search space (e.g., "trigger buy when RSI falls between 20-40") and historical market data for evaluation.
-
-**Output:** Top 10 candidate parameter configurations ranked by estimated **Sharpe ratio**—a metric that measures returns relative to risk (higher is better because it means more profit per unit of risk taken). Each candidate includes its parameters, score, and an explanation of why it was selected.
-
-**Integration:** This module provides the starting population for Module 3's genetic algorithm. Rather than starting evolution from random strategies, we seed it with promising candidates discovered through search, making optimization faster and more effective.
-
-**Prerequisites:** Informed Search (Weeks 1.5-3): A*, Beam Search, **heuristic design**.
-
----
-
-### Module 3: Strategy Evolution Engine
-
-**Topics:** Advanced Search (Genetic Algorithms)
-
-**Input:** Top 10 candidate strategies from Module 2, full historical market data, and GA parameters (population size: 20, generations: 100, mutation rate: 0.1).
-
-**Output:** Top 5 evolved strategies with full performance metrics (Sharpe ratio, total return, win rate, max drawdown) and an evolution summary showing how strategies improved over generations.
-
-**Integration:** This module refines search results into production-ready strategies. The top 5 are passed to Module 4, which matches them to market sentiment conditions. Unlike Module 2's quick estimates, fitness here uses full backtesting—simulating every trade across all historical data.
-
-**Prerequisites:** Advanced Search (Weeks 4.5-5.5): Genetic algorithms, fitness functions, selection, crossover, mutation operators.
-
----
-
-### Module 4: Market Sentiment Classifier
-
-**Topics:** Supervised Learning (Logistic Regression, Classification, Feature Engineering)
-
-**Input:** News sentiment data from Alpha Vantage API: article sentiment scores (-1 to 1), article volume, topic distribution, and sentiment trend.
-
-**Output:** Predicted sentiment regime (Bullish/Bearish/Neutral), confidence score, top headlines driving classification, and recommended strategy from Module 3 for the predicted regime.
-
-**Integration:** This module bridges strategy discovery and execution. The classifier learns to map sentiment features to market outcomes via logistic regression. Training labels are generated by pairing historical sentiment snapshots with subsequent 5-day returns: Bullish (>+1%), Bearish (<-1%), or Neutral. At inference time, it recommends which evolved strategy historically performed best in the predicted regime.
-
-**Prerequisites:** Supervised Learning (Week 10+): Logistic regression, classification, training/test splits, feature engineering.
-
----
-
-### Module 5: Adaptive Position Sizing Agent
-
-**Topics:** Reinforcement Learning (MDP, Q-Learning, Policy, Value Functions)
-
-**Input:** Market sentiment regime and confidence from Module 4, selected strategy's performance metrics from Module 3, current volatility level, and available capital (e.g., $10,000).
-
-**Output:** 
-- Recommended **position size:** What percentage of capital to invest (1%, 5%, 10%, or 15%)
-- **Q-values:** Expected long-term returns for each possible position size (shows why one size was chosen over others)
-- Reasoning explaining the decision
-- Risk assessment (e.g., "Bullish sentiment with high confidence—aggressive position justified")
-
-**Integration:** This is the final decision module. It determines how much capital to allocate given all upstream information. The **RL agent** learns through simulated historical trades. Unlike fixed rules, it adapts—learning to size positions aggressively when sentiment favors the strategy and conservatively when uncertain.
-
-**Prerequisites:** Reinforcement Learning (Week 10): **MDP** (Markov Decision Process), Q-learning, state/action spaces, reward design.
-
----
-
-## Feasibility Study
-
-This timeline shows that each module's prerequisites align with the course schedule. All modules are scheduled after their prerequisite topics are taught.
-
-| Module | Required Topic(s) | Topic Covered By | Checkpoint Target |
-| ------ | ----------------- | ---------------- | ----------------- |
-| 1: Trading Rule Knowledge Base | Propositional Logic | Week 1.5 | CP1 (Feb 11) |
-| 2: Strategy Parameter Search | Informed Search (A*, Beam) | Week 3 | CP1 (Feb 11) |
-| 3: Strategy Evolution Engine | Advanced Search (Genetic Algorithms) | Week 5.5 | CP2 (Feb 26) |
-| 4: Market Sentiment Classifier | Supervised Learning (Logistic Regression) | Week 10+ | CP3 (Mar 19) |
-| 5: Adaptive Position Sizing Agent | Reinforcement Learning | Week 10 | CP4 (Apr 2) |
-
-## Coverage Rationale
+## Proposal
 
 The trading strategy problem naturally decomposes into five AI challenges, each addressed by a different technique:
 
 1. **Propositional Logic** — Trading rules are inherently logical: "IF condition THEN action." Representing them formally enables explainable, traceable decisions.
-
 2. **Informed Search** — Finding good strategy parameters is a search problem. With thousands of possible configurations, exhaustive testing is impractical. A* and Beam Search efficiently explore the space using heuristics.
-
 3. **Genetic Algorithms** — Strategies can be improved through evolution. GA excels at optimization problems where the search space is large and the fitness function (backtested returns) is well-defined.
-
 4. **Supervised Learning** — Market sentiment varies, and different strategies suit different conditions. A logistic regression classifier learns to recognize sentiment regimes from news features, predicting which market conditions will follow.
-
 5. **Reinforcement Learning** — Position sizing is a sequential decision problem with delayed rewards. RL learns optimal risk management through experience, adapting to context rather than following fixed rules.
-
-**Why this order?**
 
 The modules follow both logical dependency (rules → parameters → evolution → classification → execution) and course schedule (early topics first). This ensures the system can be built incrementally, with each module tested before the next checkpoint.
 
----
+## Module Plan
 
-## Glossary
+| Module | Topic(s) | Inputs | Outputs | Depends On | Checkpoint |
+| ------ | -------- | ------ | ------- | ---------- | ---------- |
+| 1: Trading Rule Knowledge Base | Propositional Logic (Knowledge Bases, Inference, Forward Chaining) | Market indicators (RSI, MACD, MA20, MA50, Volume) and trading rules in CNF format | Trading action (BUY/SELL/HOLD), fired rules, inference chain | None | CP1 (Feb 11) |
+| 2: Strategy Parameter Search | Informed Search (A*, Beam Search, Heuristics) | Parameter ranges defining search space, historical market data | Top 10 candidate parameter configurations ranked by Sharpe ratio | Module 1 | CP1 (Feb 11) |
+| 3: Strategy Evolution Engine | Advanced Search (Genetic Algorithms) | Top 10 candidates from Module 2, historical data, GA parameters | Top 5 evolved strategies with performance metrics (Sharpe, return, win rate, max drawdown) | Module 2 | CP2 (Feb 26) |
+| 4: Market Sentiment Classifier | Supervised Learning (Logistic Regression, Classification) | News sentiment data from Alpha Vantage API (scores, volume, topics, trend) | Sentiment regime (Bullish/Bearish/Neutral), confidence, recommended strategy | Module 3 | CP3 (Mar 19) |
+| 5: Adaptive Position Sizing Agent | Reinforcement Learning (MDP, Q-Learning) | Sentiment regime from Module 4, strategy metrics, volatility, capital | Position size (1-15%), Q-values, reasoning, risk assessment | Module 4 | CP4 (Apr 2) |
+
+## Repository Layout
+
+```
+project-2-ai-system-stratton-oakmont/
+├── src/                              # main system source code
+│   ├── module_1_knowledge_base/      # propositional logic trading rules
+│   ├── module_2_strategy_search/     # A* and Beam Search optimization
+│   ├── module_3_evolution/           # genetic algorithm strategy evolution
+│   ├── module_4_sentiment/           # sentiment classification
+│   ├── module_5_position_sizing/     # RL position sizing agent
+│   └── shared/                       # shared utilities
+├── unit_tests/                       # unit tests (parallel structure to src/)
+├── integration_tests/                # integration tests (new folder for each module)
+├── data/                             # market data and datasets
+├── .claude/skills/code-review/SKILL.md  # rubric-based agent review
+├── AGENTS.md                         # instructions for your LLM agent
+└── README.md                         # system overview and checkpoints
+```
+
+## Setup
+
+List dependencies, setup steps, and any environment variables required to run the system.
+
+## Running
+
+Provide commands or scripts for running modules and demos.
+
+## Testing
+
+**Unit Tests** (`unit_tests/`): Mirror the structure of `src/`. Each module should have corresponding unit tests.
+
+**Integration Tests** (`integration_tests/`): Create a new subfolder for each module beyond the first, demonstrating how modules work together.
+
+Provide commands to run tests and describe any test data needed.
+
+## Checkpoint Log
+
+| Checkpoint | Date | Modules Included | Status | Evidence |
+| ---------- | ---- | ---------------- | ------ | -------- |
+| 1 | Feb 11 | Module 1, Module 2 |  |  |
+| 2 | Feb 26 | Module 3 |  |  |
+| 3 | Mar 19 | Module 4 |  |  |
+| 4 | Apr 2 | Module 5 |  |  |
+
+## Required Workflow (Agent-Guided)
+
+Before each module:
+
+1. Write a short module spec in this README (inputs, outputs, dependencies, tests).
+2. Ask the agent to propose a plan in "Plan" mode.
+3. Review and edit the plan. You must understand and approve the approach.
+4. Implement the module in `src/`.
+5. Unit test the module, placing tests in `unit_tests/` (parallel structure to `src/`).
+6. For modules beyond the first, add integration tests in `integration_tests/` (new subfolder per module).
+7. Run a rubric review using the code-review skill at `.claude/skills/code-review/SKILL.md`.
+
+Keep `AGENTS.md` updated with your module plan, constraints, and links to APIs/data sources.
+
+## References
 
 **Market Indicators:**
 - **RSI (Relative Strength Index):** A 0-100 score measuring if an asset is overbought (>70) or oversold (<30)
@@ -142,3 +116,6 @@ The modules follow both logical dependency (rules → parameters → evolution �
 - **Total return:** Overall profit percentage
 - **Win rate:** Percentage of trades that were profitable
 - **Max drawdown:** Largest peak-to-trough loss (measures worst-case scenario)
+
+**APIs & Libraries:**
+- Alpha Vantage API (news sentiment data)
