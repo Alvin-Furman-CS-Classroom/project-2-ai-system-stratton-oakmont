@@ -12,9 +12,9 @@ Together, these modules form a complete pipeline: discover rules, optimize them,
 
 ## Team
 
-- Member 1
-- Member 2
-- Member 3 (if applicable)
+- Casen Shoemake
+- Kyler Bailey
+- Collin Riddle
 
 ## Proposal
 
