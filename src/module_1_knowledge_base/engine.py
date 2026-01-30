@@ -10,9 +10,8 @@ from .facts import FactDefinition, Params, indicators_to_facts
 
 @dataclass(frozen=True)
 class Literal:
-    # A yes/no statement (a "fact") we can check.
-    # Example: symbol="RSI_OVERSOLD" means "RSI is oversold".
-    # If negated=True, it means "NOT RSI_OVERSOLD".
+    """A propositional symbol, optionally negated. Used as rule premises."""
+
     symbol: str
     negated: bool = False
 
@@ -41,7 +40,8 @@ class HornRule:
 
 @dataclass(frozen=True)
 class InferenceStep:
-    # One "because..." step we can show the user.
+    """One step in the inference chain, for explainability."""
+
     rule_id: str
     added_fact: str
     supporting_literals: Tuple[Literal, ...]
@@ -49,10 +49,8 @@ class InferenceStep:
 
 @dataclass(frozen=True)
 class InferenceResult:
-    # Final output from Module 1:
-    # - the action
-    # - which rules fired
-    # - the step-by-step "why" trace
+    """Complete output from rule evaluation: action, fired rules, and inference trace."""
+
     action: TradingAction
     fired_rules: Tuple[str, ...]
     inference_chain: Tuple[InferenceStep, ...]
@@ -68,9 +66,15 @@ def forward_chain(
     max_steps: int = 256,
 ) -> Tuple[Set[str], List[str], List[InferenceStep]]:
     """
-    Run rules again and again until nothing new becomes true.
+    Apply Horn rules until no new facts can be derived (fixed-point).
 
-    `truth_assignments` is our "current notebook" of what's true/false.
+    Args:
+        truth_assignments: Known facts (modified in-place as rules fire).
+        rules: Horn rules to apply.
+        max_steps: Safety limit to prevent infinite loops.
+
+    Returns:
+        Tuple of (derived_facts, fired_rule_ids, inference_chain).
     """
 
     # Keep track of what we've already concluded so we don't repeat forever.
@@ -117,8 +121,7 @@ def forward_chain(
 
 
 def choose_action(truth_assignments: Dict[str, bool]) -> Tuple[TradingAction, bool]:
-    # Our rules conclude special facts named "BUY" or "SELL".
-    # If we somehow get both, we play it safe and HOLD.
+    """Convert derived facts to a trading action. Returns (action, conflict_flag)."""
     buy = bool(truth_assignments.get(TradingAction.BUY.value, False))
     sell = bool(truth_assignments.get(TradingAction.SELL.value, False))
     if buy and sell:
@@ -132,13 +135,22 @@ def choose_action(truth_assignments: Dict[str, bool]) -> Tuple[TradingAction, bo
 
 def default_trading_rules() -> List[HornRule]:
     """
-    Starter rules (simple examples).
-    Later modules will generate/tune better rules.
+    Comprehensive trading rules organized by strategy type.
+    
+    Categories:
+    - Momentum Continuation: Ride existing trends with confirmation
+    - Mean Reversion: Enter on pullbacks within trends
+    - Volume Confirmed: Require volume for signal validation
+    - Conservative: Multiple confirmations, lower risk
+    - Aggressive: Fewer conditions, faster entry
+    
+    Later modules (2 & 3) will tune parameters and evolve better rule combinations.
     """
 
     return [
+        # ========== MOMENTUM CONTINUATION (BUY) ==========
         HornRule(
-            rule_id="BUY_1",
+            rule_id="BUY_MOMENTUM_1",
             premises=[
                 Literal("RSI_OVERSOLD"),
                 Literal("MACD_POSITIVE"),
@@ -146,17 +158,145 @@ def default_trading_rules() -> List[HornRule]:
                 Literal("VOLATILITY_HIGH", negated=True),
             ],
             conclusion=TradingAction.BUY.value,
-            description="Buy: oversold + positive momentum + uptrend, but not high volatility",
+            description="Classic momentum buy: oversold RSI + positive MACD + uptrend, avoid high volatility",
         ),
         HornRule(
-            rule_id="SELL_1",
+            rule_id="BUY_MOMENTUM_STRONG",
+            premises=[
+                Literal("STRONG_UPTREND"),
+                Literal("MACD_STRONG_POSITIVE"),
+                Literal("VOLUME_HIGH"),
+            ],
+            conclusion=TradingAction.BUY.value,
+            description="Strong momentum buy: confirmed uptrend with strong MACD and volume",
+        ),
+        # ========== MOMENTUM CONTINUATION (SELL) ==========
+        HornRule(
+            rule_id="SELL_MOMENTUM_1",
             premises=[
                 Literal("RSI_OVERBOUGHT"),
                 Literal("MACD_NEGATIVE"),
                 Literal("DEATH_CROSS"),
             ],
             conclusion=TradingAction.SELL.value,
-            description="Sell: overbought + negative momentum + downtrend",
+            description="Classic momentum sell: overbought RSI + negative MACD + downtrend",
+        ),
+        HornRule(
+            rule_id="SELL_MOMENTUM_STRONG",
+            premises=[
+                Literal("STRONG_DOWNTREND"),
+                Literal("MACD_STRONG_NEGATIVE"),
+                Literal("VOLUME_HIGH"),
+            ],
+            conclusion=TradingAction.SELL.value,
+            description="Strong momentum sell: confirmed downtrend with strong bearish MACD and volume",
+        ),
+        # ========== MEAN REVERSION (Pullback entries) ==========
+        HornRule(
+            rule_id="BUY_PULLBACK",
+            premises=[
+                Literal("GOLDEN_CROSS"),  # Still in uptrend
+                Literal("RSI_OVERSOLD"),  # But temporarily oversold (pullback)
+                Literal("VOLATILITY_HIGH", negated=True),
+            ],
+            conclusion=TradingAction.BUY.value,
+            description="Pullback buy: oversold in an uptrend - buy the dip",
+        ),
+        HornRule(
+            rule_id="SELL_RALLY",
+            premises=[
+                Literal("DEATH_CROSS"),  # Still in downtrend
+                Literal("RSI_OVERBOUGHT"),  # But temporarily overbought (relief rally)
+                Literal("VOLATILITY_HIGH", negated=True),
+            ],
+            conclusion=TradingAction.SELL.value,
+            description="Rally sell: overbought in a downtrend - sell the rip",
+        ),
+        # ========== VOLUME CONFIRMED ==========
+        HornRule(
+            rule_id="BUY_VOLUME_BREAKOUT",
+            premises=[
+                Literal("GOLDEN_CROSS"),
+                Literal("MACD_POSITIVE"),
+                Literal("VOLUME_SURGE"),
+            ],
+            conclusion=TradingAction.BUY.value,
+            description="Volume breakout buy: uptrend confirmed by unusual volume surge",
+        ),
+        HornRule(
+            rule_id="SELL_VOLUME_BREAKDOWN",
+            premises=[
+                Literal("DEATH_CROSS"),
+                Literal("MACD_NEGATIVE"),
+                Literal("VOLUME_SURGE"),
+            ],
+            conclusion=TradingAction.SELL.value,
+            description="Volume breakdown sell: downtrend confirmed by unusual volume surge",
+        ),
+        # ========== CONSERVATIVE (Multiple confirmations) ==========
+        HornRule(
+            rule_id="BUY_CONSERVATIVE",
+            premises=[
+                Literal("RSI_OVERSOLD"),
+                Literal("MACD_POSITIVE"),
+                Literal("GOLDEN_CROSS"),
+                Literal("VOLUME_HIGH"),
+                Literal("VOLATILITY_HIGH", negated=True),
+            ],
+            conclusion=TradingAction.BUY.value,
+            description="Conservative buy: all signals aligned - oversold, positive momentum, uptrend, volume, low volatility",
+        ),
+        HornRule(
+            rule_id="SELL_CONSERVATIVE",
+            premises=[
+                Literal("RSI_OVERBOUGHT"),
+                Literal("MACD_NEGATIVE"),
+                Literal("DEATH_CROSS"),
+                Literal("VOLUME_HIGH"),
+                Literal("VOLATILITY_HIGH", negated=True),
+            ],
+            conclusion=TradingAction.SELL.value,
+            description="Conservative sell: all signals aligned - overbought, negative momentum, downtrend, volume, low volatility",
+        ),
+        # ========== AGGRESSIVE (Faster entry, fewer conditions) ==========
+        HornRule(
+            rule_id="BUY_AGGRESSIVE",
+            premises=[
+                Literal("RSI_OVERSOLD"),
+                Literal("STRONG_UPTREND"),
+            ],
+            conclusion=TradingAction.BUY.value,
+            description="Aggressive buy: oversold in strong uptrend - fast entry",
+        ),
+        HornRule(
+            rule_id="SELL_AGGRESSIVE",
+            premises=[
+                Literal("RSI_OVERBOUGHT"),
+                Literal("STRONG_DOWNTREND"),
+            ],
+            conclusion=TradingAction.SELL.value,
+            description="Aggressive sell: overbought in strong downtrend - fast exit",
+        ),
+        # ========== LOW VOLATILITY OPPORTUNITIES ==========
+        HornRule(
+            rule_id="BUY_LOW_VOL",
+            premises=[
+                Literal("GOLDEN_CROSS"),
+                Literal("MACD_POSITIVE"),
+                Literal("VOLATILITY_LOW"),
+            ],
+            conclusion=TradingAction.BUY.value,
+            description="Low volatility buy: stable uptrend with positive momentum",
+        ),
+        HornRule(
+            rule_id="SELL_LOW_VOL",
+            premises=[
+                Literal("DEATH_CROSS"),
+                Literal("MACD_NEGATIVE"),
+                Literal("VOLATILITY_LOW"),
+            ],
+            conclusion=TradingAction.SELL.value,
+            description="Low volatility sell: stable downtrend with negative momentum",
         ),
     ]
 
@@ -169,14 +309,16 @@ def evaluate_rules_on_indicators(
     fact_definitions: Optional[Sequence[FactDefinition]] = None,
 ) -> InferenceResult:
     """
-    Module 1 main entrypoint.
+    Main entrypoint: evaluate trading rules on market indicators.
 
-    Input:
-    - numeric indicators + optional parameter thresholds
-    - a set of Horn/CNF-friendly rules (defaults provided)
+    Args:
+        indicators: Current market data.
+        rules: Trading rules (defaults to default_trading_rules()).
+        params: Threshold overrides for fact generation.
+        fact_definitions: Custom fact definitions.
 
-    Output:
-    - BUY/SELL/HOLD + fired rules + inference chain (explainability)
+    Returns:
+        InferenceResult with action (BUY/SELL/HOLD), fired rules, and inference chain.
     """
 
     # 1) Turn numbers into yes/no facts.
