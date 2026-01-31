@@ -394,3 +394,131 @@ def test_cnf_invalid_clause_raises():
     # Empty negated literal
     with pytest.raises(ValueError):
         horn_rule_from_cnf_clause(clause="(~ OR B)", rule_id="R3")
+
+
+# =============================================================================
+# RULES LOADER (CONFIG) TESTS
+# =============================================================================
+
+
+def test_load_rules_from_dict_list():
+    """Load rules from a list of rule dicts (e.g. from JSON array)."""
+    from src.module_1_knowledge_base import load_rules_from_dict
+
+    data = [
+        {
+            "rule_id": "R1",
+            "premises": [{"symbol": "A"}, {"symbol": "B", "negated": True}],
+            "conclusion": "C",
+            "description": "If A and not B then C",
+        },
+    ]
+    rules = load_rules_from_dict(data)
+    assert len(rules) == 1
+    assert rules[0].rule_id == "R1"
+    assert rules[0].conclusion == "C"
+    assert len(rules[0].premises) == 2
+    assert rules[0].premises[0].symbol == "A" and rules[0].premises[0].negated is False
+    assert rules[0].premises[1].symbol == "B" and rules[0].premises[1].negated is True
+
+
+def test_load_rules_from_dict_rules_key():
+    """Load rules from a dict with a 'rules' key (standard file shape)."""
+    from src.module_1_knowledge_base import load_rules_from_dict
+
+    data = {
+        "rules": [
+            {"rule_id": "BUY_1", "premises": [{"symbol": "RSI_OVERSOLD"}], "conclusion": "BUY"},
+        ],
+    }
+    rules = load_rules_from_dict(data)
+    assert len(rules) == 1
+    assert rules[0].rule_id == "BUY_1"
+    assert rules[0].conclusion == "BUY"
+
+
+def test_load_rules_from_file():
+    """Load rules from data/sample_rules.json and evaluate with them."""
+    from pathlib import Path
+
+    from src.module_1_knowledge_base import evaluate_rules_on_indicators, load_rules_from_file
+
+    path = Path(__file__).resolve().parent.parent.parent / "data" / "sample_rules.json"
+    rules = load_rules_from_file(path)
+    assert len(rules) >= 2
+    # Use bullish indicators so a BUY rule should fire
+    ind = MarketIndicators(
+        rsi=25,
+        macd=1.0,
+        ma20=105,
+        ma50=100,
+        volume=2_000_000,
+        volatility=0.01,
+    )
+    result = evaluate_rules_on_indicators(ind, rules=rules)
+    assert result.action in (TradingAction.BUY, TradingAction.SELL, TradingAction.HOLD)
+    assert len(result.fired_rules) >= 1
+
+
+# =============================================================================
+# HUMAN-READABLE SUMMARY TESTS
+# =============================================================================
+
+
+def test_format_inference_summary_no_rules_fired():
+    """Summary when no rules fire: action + 'No rules fired'."""
+    from src.module_1_knowledge_base import format_inference_summary
+
+    ind = MarketIndicators(
+        rsi=50,
+        macd=0.0,
+        ma20=100,
+        ma50=100,
+        volume=500_000,
+        volatility=0.02,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    summary = format_inference_summary(result)
+    assert result.action.value in summary
+    assert "No rules fired" in summary or "because" in summary
+
+
+def test_format_inference_summary_rules_fired():
+    """Summary when rules fire: action + 'because' + rule steps."""
+    from src.module_1_knowledge_base import format_inference_summary
+
+    ind = MarketIndicators(
+        rsi=25,
+        macd=1.0,
+        ma20=105,
+        ma50=100,
+        volume=2_000_000,
+        volatility=0.01,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    summary = format_inference_summary(result)
+    assert result.action.value in summary
+    assert "because" in summary
+    # At least one rule id should appear (e.g. BUY_MOMENTUM_1 or BUY_1)
+    assert any(rid in summary for rid in result.fired_rules)
+
+
+def test_format_inference_summary_conflict():
+    """Summary when both BUY and SELL inferred: mentions conflict."""
+    from src.module_1_knowledge_base import format_inference_summary
+
+    rules = [
+        HornRule(rule_id="BUY_ALWAYS", premises=[], conclusion=TradingAction.BUY.value),
+        HornRule(rule_id="SELL_ALWAYS", premises=[], conclusion=TradingAction.SELL.value),
+    ]
+    ind = MarketIndicators(
+        rsi=50,
+        macd=0.0,
+        ma20=100,
+        ma50=100,
+        volume=10,
+        volatility=0.02,
+    )
+    result = evaluate_rules_on_indicators(ind, rules=rules)
+    summary = format_inference_summary(result)
+    assert "conflict" in summary.lower() or "HOLD" in summary

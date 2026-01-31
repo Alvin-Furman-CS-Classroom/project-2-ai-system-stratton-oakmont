@@ -394,3 +394,25 @@ def horn_rule_from_cnf_clause(*, clause: str, rule_id: str, description: str = "
         description=description,
     )
 
+
+def format_inference_summary(result: InferenceResult) -> str:
+    """
+    Turn an InferenceResult into a short human-readable "why" summary.
+
+    Example: "BUY because: RSI_OVERSOLD, MACD_POSITIVE, GOLDEN_CROSS; rule BUY_1 fired."
+    If there's a conflict (both BUY and SELL), we say so and still show fired rules.
+    """
+    action_str = result.action.value
+    if result.conflict:
+        action_str = f"{action_str} (conflict: both BUY and SELL inferred; defaulting to HOLD)"
+    if not result.fired_rules:
+        return f"{action_str}. No rules fired."
+    # For each step, list the premises that supported the conclusion (readable).
+    parts = []
+    for step in result.inference_chain:
+        prems = [lit.symbol if not lit.negated else f"NOT_{lit.symbol}" for lit in step.supporting_literals]
+        prems_str = ", ".join(prems) if prems else "(no premises)"
+        parts.append(f"{step.added_fact} via {step.rule_id} ({prems_str})")
+    steps_str = "; ".join(parts)
+    return f"{action_str} because: {steps_str}."
+
