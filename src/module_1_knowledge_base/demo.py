@@ -20,6 +20,19 @@ from src.module_1_knowledge_base import evaluate_rules_on_indicators, indicators
 from src.shared import MarketIndicators
 
 
+def print_inference_chain(result):
+    """Print the inference chain showing how conclusions were derived."""
+    if not result.inference_chain:
+        print("  (no rules fired)")
+        return
+    for step in result.inference_chain:
+        premises_str = ", ".join(
+            f"{'¬' if lit.negated else ''}{lit.symbol}"
+            for lit in step.supporting_literals
+        )
+        print(f"  {step.rule_id}: {premises_str} → {step.added_fact}")
+
+
 def main():
     # Example: Bullish market conditions
     bullish = MarketIndicators(
@@ -44,6 +57,8 @@ def main():
     print(f"\nAction: {result.action.value}")
     print(f"Fired Rules: {result.fired_rules}")
     print(f"Conflict: {result.conflict}")
+    print("\nInference Chain:")
+    print_inference_chain(result)
 
     # Example: Bearish market conditions
     bearish = MarketIndicators(
@@ -64,6 +79,8 @@ def main():
     result = evaluate_rules_on_indicators(bearish)
     print(f"\nAction: {result.action.value}")
     print(f"Fired Rules: {result.fired_rules}")
+    print("\nInference Chain:")
+    print_inference_chain(result)
 
     # Example: Neutral market (no signal)
     neutral = MarketIndicators(
@@ -79,6 +96,8 @@ def main():
     result = evaluate_rules_on_indicators(neutral)
     print(f"Action: {result.action.value}")
     print(f"Fired Rules: {result.fired_rules}")
+    print("\nInference Chain:")
+    print_inference_chain(result)
 
 
 if __name__ == "__main__":
