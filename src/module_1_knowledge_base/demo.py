@@ -1,4 +1,20 @@
-"""Demo: Module 1 Trading Rule Knowledge Base usage."""
+"""Demo: Module 1 Trading Rule Knowledge Base usage.
+
+Run from project root (where src/ lives):
+  python -m src.module_1_knowledge_base.demo
+
+If you run this file directly (e.g. from an IDE), the block below adds the
+project root to sys.path so "from src...." imports work.
+"""
+
+import sys
+from pathlib import Path
+
+# Ensure project root is on path when run as __main__ (e.g. python demo.py or IDE Run).
+if __name__ == "__main__":
+    _project_root = Path(__file__).resolve().parent.parent.parent
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
 
 from src.module_1_knowledge_base import evaluate_rules_on_indicators, indicators_to_facts
 from src.shared import MarketIndicators
