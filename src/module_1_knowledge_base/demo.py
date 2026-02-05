@@ -16,7 +16,10 @@ def main():
     )
 
     print("=== Bullish Market Example ===")
-    print(f"Indicators: RSI={bullish.rsi}, MACD={bullish.macd}, MA20={bullish.ma20}, MA50={bullish.ma50}")
+    print(
+        f"Indicators: RSI={bullish.rsi}, MACD={bullish.macd}, "
+        f"MA20={bullish.ma20}, MA50={bullish.ma50}"
+    )
     
     facts = indicators_to_facts(bullish)
     print(f"\nFacts (True only): {[k for k, v in facts.items() if v]}")
@@ -37,7 +40,10 @@ def main():
     )
 
     print("\n=== Bearish Market Example ===")
-    print(f"Indicators: RSI={bearish.rsi}, MACD={bearish.macd}, MA20={bearish.ma20}, MA50={bearish.ma50}")
+    print(
+        f"Indicators: RSI={bearish.rsi}, MACD={bearish.macd}, "
+        f"MA20={bearish.ma20}, MA50={bearish.ma50}"
+    )
     
     result = evaluate_rules_on_indicators(bearish)
     print(f"\nAction: {result.action.value}")

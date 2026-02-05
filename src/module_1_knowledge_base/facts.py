@@ -58,88 +58,101 @@ def default_fact_definitions() -> List[FactDefinition]:
         # ========== RSI Facts ==========
         FactDefinition(
             name="RSI_OVERSOLD",
-            predicate=lambda ind, p: ind.rsi < p["rsi_oversold"],
+            predicate=lambda indicators, params: indicators.rsi < params["rsi_oversold"],
             description="RSI below 30 - potential buying opportunity",
         ),
         FactDefinition(
             name="RSI_OVERBOUGHT",
-            predicate=lambda ind, p: ind.rsi > p["rsi_overbought"],
+            predicate=lambda indicators, params: indicators.rsi > params["rsi_overbought"],
             description="RSI above 70 - potential selling opportunity",
         ),
         FactDefinition(
             name="RSI_NEUTRAL",
-            predicate=lambda ind, p: p["rsi_neutral_low"] <= ind.rsi <= p["rsi_neutral_high"],
+            predicate=lambda indicators, params: (
+                params["rsi_neutral_low"] <= indicators.rsi <= params["rsi_neutral_high"]
+            ),
             description="RSI in neutral zone (40-60) - no clear momentum signal",
         ),
         # ========== MACD Facts ==========
         FactDefinition(
             name="MACD_POSITIVE",
-            predicate=lambda ind, p: ind.macd > p["macd_epsilon"],
+            predicate=lambda indicators, params: indicators.macd > params["macd_epsilon"],
             description="MACD is positive (bullish momentum)",
         ),
         FactDefinition(
             name="MACD_NEGATIVE",
-            predicate=lambda ind, p: ind.macd < -p["macd_epsilon"],
+            predicate=lambda indicators, params: indicators.macd < -params["macd_epsilon"],
             description="MACD is negative (bearish momentum)",
         ),
         FactDefinition(
             name="MACD_STRONG_POSITIVE",
-            predicate=lambda ind, p: ind.macd > p["macd_strong_threshold"],
+            predicate=lambda indicators, params: (
+                indicators.macd > params["macd_strong_threshold"]
+            ),
             description="MACD strongly positive - strong bullish momentum",
         ),
         FactDefinition(
             name="MACD_STRONG_NEGATIVE",
-            predicate=lambda ind, p: ind.macd < -p["macd_strong_threshold"],
+            predicate=lambda indicators, params: (
+                indicators.macd < -params["macd_strong_threshold"]
+            ),
             description="MACD strongly negative - strong bearish momentum",
         ),
         # ========== Trend Facts (Moving Averages) ==========
         FactDefinition(
             name="GOLDEN_CROSS",
-            predicate=lambda ind, p: ind.ma20 > ind.ma50,
+            predicate=lambda indicators, params: indicators.ma20 > indicators.ma50,
             description="MA20 above MA50 (uptrend)",
         ),
         FactDefinition(
             name="DEATH_CROSS",
-            predicate=lambda ind, p: ind.ma20 < ind.ma50,
+            predicate=lambda indicators, params: indicators.ma20 < indicators.ma50,
             description="MA20 below MA50 (downtrend)",
         ),
         FactDefinition(
             name="STRONG_UPTREND",
-            predicate=lambda ind, p: ind.ma20 > ind.ma50 * (1 + p["ma_crossover_margin"]),
+            predicate=lambda indicators, params: (
+                indicators.ma20 > indicators.ma50 * (1 + params["ma_crossover_margin"])
+            ),
             description="MA20 significantly above MA50 - strong uptrend",
         ),
         FactDefinition(
             name="STRONG_DOWNTREND",
-            predicate=lambda ind, p: ind.ma20 < ind.ma50 * (1 - p["ma_crossover_margin"]),
+            predicate=lambda indicators, params: (
+                indicators.ma20 < indicators.ma50 * (1 - params["ma_crossover_margin"])
+            ),
             description="MA20 significantly below MA50 - strong downtrend",
         ),
         # ========== Volume Facts ==========
         FactDefinition(
             name="VOLUME_HIGH",
-            predicate=lambda ind, p: ind.volume > p["volume_high"],
+            predicate=lambda indicators, params: indicators.volume > params["volume_high"],
             description="Volume is above a high-volume threshold",
         ),
         FactDefinition(
             name="VOLUME_SURGE",
-            predicate=lambda ind, p: ind.volume > p["volume_average"] * p["volume_surge_multiplier"],
+            predicate=lambda indicators, params: (
+                indicators.volume
+                > params["volume_average"] * params["volume_surge_multiplier"]
+            ),
             description="Volume surge - unusually high trading activity",
         ),
         # ========== Volatility Facts ==========
         FactDefinition(
             name="VOLATILITY_HIGH",
-            predicate=lambda ind, p: (ind.volatility is not None)
-            and (ind.volatility > p["volatility_high"]),
+            predicate=lambda indicators, params: (indicators.volatility is not None)
+            and (indicators.volatility > params["volatility_high"]),
             description="Volatility is above a high-volatility threshold",
         ),
         FactDefinition(
             name="VOLATILITY_LOW",
-            predicate=lambda ind, p: (ind.volatility is not None)
-            and (ind.volatility < p["volatility_low"]),
+            predicate=lambda indicators, params: (indicators.volatility is not None)
+            and (indicators.volatility < params["volatility_low"]),
             description="Volatility is low - stable price action",
         ),
         FactDefinition(
             name="VOLATILITY_UNKNOWN",
-            predicate=lambda ind, p: ind.volatility is None,
+            predicate=lambda indicators, params: indicators.volatility is None,
             description="Volatility data not available",
         ),
     ]
@@ -164,11 +177,18 @@ def indicators_to_facts(
     """
 
     # Start with defaults, then overwrite any thresholds the caller provides.
-    p = dict(DEFAULT_PARAMS)
+    resolved_params = dict(DEFAULT_PARAMS)
     if params:
-        p.update(params)
+        resolved_params.update(params)
 
     # You can pass custom fact definitions if you want different facts.
-    defs = list(fact_definitions) if fact_definitions is not None else default_fact_definitions()
-    return {d.name: bool(d.predicate(indicators, p)) for d in defs}
+    definitions = (
+        list(fact_definitions)
+        if fact_definitions is not None
+        else default_fact_definitions()
+    )
+    return {
+        definition.name: bool(definition.predicate(indicators, resolved_params))
+        for definition in definitions
+    }
 

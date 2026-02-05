@@ -7,6 +7,9 @@ from src.shared import MarketIndicators, TradingAction
 
 from .facts import FactDefinition, Params, indicators_to_facts
 
+# Safety limit for forward chaining to prevent infinite loops with malformed rules.
+MAX_FORWARD_CHAIN_STEPS = 256
+
 
 @dataclass(frozen=True)
 class Literal:
@@ -63,7 +66,7 @@ def forward_chain(
     *,
     truth_assignments: Dict[str, bool],
     rules: Iterable[HornRule],
-    max_steps: int = 256,
+    max_steps: int = MAX_FORWARD_CHAIN_STEPS,
 ) -> Tuple[Set[str], List[str], List[InferenceStep]]:
     """
     Apply Horn rules until no new facts can be derived (fixed-point).
@@ -88,26 +91,28 @@ def forward_chain(
 
     while changed:
         changed = False
-        for r in rules_list:
-            if r.conclusion in derived:
+        for rule in rules_list:
+            if rule.conclusion in derived:
                 continue
-            if bool(truth_assignments.get(r.conclusion, False)):
+            if bool(truth_assignments.get(rule.conclusion, False)):
                 # already true via facts or earlier derivation
-                derived.add(r.conclusion)
+                derived.add(rule.conclusion)
                 continue
 
             # A rule fires when ALL its premises match what we know.
-            if all(lit.is_satisfied(truth_assignments) for lit in r.premises):
+            if all(
+                literal.is_satisfied(truth_assignments) for literal in rule.premises
+            ):
                 # Mark the conclusion as true.
-                truth_assignments[r.conclusion] = True
-                derived.add(r.conclusion)
-                fired.append(r.rule_id)
+                truth_assignments[rule.conclusion] = True
+                derived.add(rule.conclusion)
+                fired.append(rule.rule_id)
                 # Save a "why" step for the explanation.
                 chain.append(
                     InferenceStep(
-                        rule_id=r.rule_id,
-                        added_fact=r.conclusion,
-                        supporting_literals=tuple(r.premises),
+                        rule_id=rule.rule_id,
+                        added_fact=rule.conclusion,
+                        supporting_literals=tuple(rule.premises),
                     )
                 )
                 steps += 1
@@ -133,22 +138,9 @@ def choose_action(truth_assignments: Dict[str, bool]) -> Tuple[TradingAction, bo
     return TradingAction.HOLD, False
 
 
-def default_trading_rules() -> List[HornRule]:
-    """
-    Comprehensive trading rules organized by strategy type.
-    
-    Categories:
-    - Momentum Continuation: Ride existing trends with confirmation
-    - Mean Reversion: Enter on pullbacks within trends
-    - Volume Confirmed: Require volume for signal validation
-    - Conservative: Multiple confirmations, lower risk
-    - Aggressive: Fewer conditions, faster entry
-    
-    Later modules (2 & 3) will tune parameters and evolve better rule combinations.
-    """
-
+def _momentum_continuation_rules() -> List[HornRule]:
+    """Momentum continuation: ride existing trends with confirmation."""
     return [
-        # ========== MOMENTUM CONTINUATION (BUY) ==========
         HornRule(
             rule_id="BUY_MOMENTUM_1",
             premises=[
@@ -170,7 +162,6 @@ def default_trading_rules() -> List[HornRule]:
             conclusion=TradingAction.BUY.value,
             description="Strong momentum buy: confirmed uptrend with strong MACD and volume",
         ),
-        # ========== MOMENTUM CONTINUATION (SELL) ==========
         HornRule(
             rule_id="SELL_MOMENTUM_1",
             premises=[
@@ -191,12 +182,17 @@ def default_trading_rules() -> List[HornRule]:
             conclusion=TradingAction.SELL.value,
             description="Strong momentum sell: confirmed downtrend with strong bearish MACD and volume",
         ),
-        # ========== MEAN REVERSION (Pullback entries) ==========
+    ]
+
+
+def _mean_reversion_rules() -> List[HornRule]:
+    """Mean reversion: enter on pullbacks within trends."""
+    return [
         HornRule(
             rule_id="BUY_PULLBACK",
             premises=[
-                Literal("GOLDEN_CROSS"),  # Still in uptrend
-                Literal("RSI_OVERSOLD"),  # But temporarily oversold (pullback)
+                Literal("GOLDEN_CROSS"),
+                Literal("RSI_OVERSOLD"),
                 Literal("VOLATILITY_HIGH", negated=True),
             ],
             conclusion=TradingAction.BUY.value,
@@ -205,14 +201,19 @@ def default_trading_rules() -> List[HornRule]:
         HornRule(
             rule_id="SELL_RALLY",
             premises=[
-                Literal("DEATH_CROSS"),  # Still in downtrend
-                Literal("RSI_OVERBOUGHT"),  # But temporarily overbought (relief rally)
+                Literal("DEATH_CROSS"),
+                Literal("RSI_OVERBOUGHT"),
                 Literal("VOLATILITY_HIGH", negated=True),
             ],
             conclusion=TradingAction.SELL.value,
             description="Rally sell: overbought in a downtrend - sell the rip",
         ),
-        # ========== VOLUME CONFIRMED ==========
+    ]
+
+
+def _volume_confirmed_rules() -> List[HornRule]:
+    """Volume-confirmed signals: require volume for validation."""
+    return [
         HornRule(
             rule_id="BUY_VOLUME_BREAKOUT",
             premises=[
@@ -233,7 +234,12 @@ def default_trading_rules() -> List[HornRule]:
             conclusion=TradingAction.SELL.value,
             description="Volume breakdown sell: downtrend confirmed by unusual volume surge",
         ),
-        # ========== CONSERVATIVE (Multiple confirmations) ==========
+    ]
+
+
+def _conservative_rules() -> List[HornRule]:
+    """Conservative: multiple confirmations, lower risk."""
+    return [
         HornRule(
             rule_id="BUY_CONSERVATIVE",
             premises=[
@@ -258,7 +264,12 @@ def default_trading_rules() -> List[HornRule]:
             conclusion=TradingAction.SELL.value,
             description="Conservative sell: all signals aligned - overbought, negative momentum, downtrend, volume, low volatility",
         ),
-        # ========== AGGRESSIVE (Faster entry, fewer conditions) ==========
+    ]
+
+
+def _aggressive_rules() -> List[HornRule]:
+    """Aggressive: fewer conditions, faster entry."""
+    return [
         HornRule(
             rule_id="BUY_AGGRESSIVE",
             premises=[
@@ -277,7 +288,12 @@ def default_trading_rules() -> List[HornRule]:
             conclusion=TradingAction.SELL.value,
             description="Aggressive sell: overbought in strong downtrend - fast exit",
         ),
-        # ========== LOW VOLATILITY OPPORTUNITIES ==========
+    ]
+
+
+def _low_volatility_rules() -> List[HornRule]:
+    """Low volatility opportunities: stable trends."""
+    return [
         HornRule(
             rule_id="BUY_LOW_VOL",
             premises=[
@@ -299,6 +315,29 @@ def default_trading_rules() -> List[HornRule]:
             description="Low volatility sell: stable downtrend with negative momentum",
         ),
     ]
+
+
+def default_trading_rules() -> List[HornRule]:
+    """
+    Comprehensive trading rules organized by strategy type.
+
+    Categories:
+    - Momentum Continuation: Ride existing trends with confirmation
+    - Mean Reversion: Enter on pullbacks within trends
+    - Volume Confirmed: Require volume for signal validation
+    - Conservative: Multiple confirmations, lower risk
+    - Aggressive: Fewer conditions, faster entry
+
+    Later modules (2 & 3) will tune parameters and evolve better rule combinations.
+    """
+    return (
+        _momentum_continuation_rules()
+        + _mean_reversion_rules()
+        + _volume_confirmed_rules()
+        + _conservative_rules()
+        + _aggressive_rules()
+        + _low_volatility_rules()
+    )
 
 
 def evaluate_rules_on_indicators(
@@ -354,33 +393,32 @@ def horn_rule_from_cnf_clause(*, clause: str, rule_id: str, description: str = "
     which means:
       IF A and B are true, THEN C is true
     """
-
-    raw = clause.strip()
-    if raw.startswith("(") and raw.endswith(")"):
-        raw = raw[1:-1].strip()
+    clause_content = clause.strip()
+    if clause_content.startswith("(") and clause_content.endswith(")"):
+        clause_content = clause_content[1:-1].strip()
 
     # Split on "OR" to get each part.
-    parts = [p.strip() for p in raw.split("OR")]
-    if any(not p for p in parts):
+    parts = [part.strip() for part in clause_content.split("OR")]
+    if any(not part for part in parts):
         raise ValueError(f"Invalid clause: {clause!r}")
 
     positives: List[str] = []
     premises: List[Literal] = []
 
-    for p in parts:
-        if p.startswith("~"):
-            sym = p[1:].strip()
-            if not sym:
-                raise ValueError(f"Invalid negated literal: {p!r}")
+    for part in parts:
+        if part.startswith("~"):
+            symbol = part[1:].strip()
+            if not symbol:
+                raise ValueError(f"Invalid negated literal: {part!r}")
             # "~A" becomes the premise "A must be true".
-            premises.append(Literal(sym, negated=False))
-        elif p.upper().startswith("NOT "):
-            sym = p[4:].strip()
-            if not sym:
-                raise ValueError(f"Invalid negated literal: {p!r}")
-            premises.append(Literal(sym, negated=False))
+            premises.append(Literal(symbol, negated=False))
+        elif part.upper().startswith("NOT "):
+            symbol = part[4:].strip()
+            if not symbol:
+                raise ValueError(f"Invalid negated literal: {part!r}")
+            premises.append(Literal(symbol, negated=False))
         else:
-            positives.append(p)
+            positives.append(part)
 
     if len(positives) != 1:
         raise ValueError(
@@ -408,11 +446,14 @@ def format_inference_summary(result: InferenceResult) -> str:
     if not result.fired_rules:
         return f"{action_str}. No rules fired."
     # For each step, list the premises that supported the conclusion (readable).
-    parts = []
+    step_parts = []
     for step in result.inference_chain:
-        prems = [lit.symbol if not lit.negated else f"NOT_{lit.symbol}" for lit in step.supporting_literals]
-        prems_str = ", ".join(prems) if prems else "(no premises)"
-        parts.append(f"{step.added_fact} via {step.rule_id} ({prems_str})")
-    steps_str = "; ".join(parts)
+        prem_strings = [
+            literal.symbol if not literal.negated else f"NOT_{literal.symbol}"
+            for literal in step.supporting_literals
+        ]
+        prems_str = ", ".join(prem_strings) if prem_strings else "(no premises)"
+        step_parts.append(f"{step.added_fact} via {step.rule_id} ({prems_str})")
+    steps_str = "; ".join(step_parts)
     return f"{action_str} because: {steps_str}."
 

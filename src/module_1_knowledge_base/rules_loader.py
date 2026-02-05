@@ -23,36 +23,38 @@ from .engine import HornRule, Literal
 # -----------------------------------------------------------------------------
 
 
-def _parse_premise(p: Any) -> Literal:
-    """Turn one premise dict into a Literal. Comment: validates shape."""
-    if not isinstance(p, dict) or "symbol" not in p:
-        raise ValueError(f"Each premise must be {{'symbol': str, 'negated': bool?}}; got {p!r}")
-    symbol = str(p["symbol"]).strip()
+def _parse_premise(premise_raw: Any) -> Literal:
+    """Turn one premise dict into a Literal. Validates shape."""
+    if not isinstance(premise_raw, dict) or "symbol" not in premise_raw:
+        raise ValueError(
+            f"Each premise must be {{'symbol': str, 'negated': bool?}}; got {premise_raw!r}"
+        )
+    symbol = str(premise_raw["symbol"]).strip()
     if not symbol:
-        raise ValueError(f"Premise symbol cannot be empty: {p!r}")
-    # negated is optional; default False
-    negated = bool(p.get("negated", False))
+        raise ValueError(f"Premise symbol cannot be empty: {premise_raw!r}")
+    negated = bool(premise_raw.get("negated", False))
     return Literal(symbol=symbol, negated=negated)
 
 
-def _parse_rule(r: Any) -> HornRule:
-    """Turn one rule dict into a HornRule. Comment: validates required fields."""
-    if not isinstance(r, dict):
-        raise ValueError(f"Each rule must be a dict; got {type(r).__name__}")
-    rule_id = r.get("rule_id")
+def _parse_rule(rule_raw: Any) -> HornRule:
+    """Turn one rule dict into a HornRule. Validates required fields."""
+    if not isinstance(rule_raw, dict):
+        raise ValueError(f"Each rule must be a dict; got {type(rule_raw).__name__}")
+    rule_id = rule_raw.get("rule_id")
     if rule_id is None or not str(rule_id).strip():
-        raise ValueError(f"Rule must have non-empty 'rule_id'; got {r!r}")
-    conclusion = r.get("conclusion")
+        raise ValueError(f"Rule must have non-empty 'rule_id'; got {rule_raw!r}")
+    conclusion = rule_raw.get("conclusion")
     if conclusion is None or not str(conclusion).strip():
-        raise ValueError(f"Rule must have non-empty 'conclusion'; got {r!r}")
-    # premises: list of { symbol, negated? }; default to empty list
-    raw_premises = r.get("premises")
+        raise ValueError(f"Rule must have non-empty 'conclusion'; got {rule_raw!r}")
+    raw_premises = rule_raw.get("premises")
     if raw_premises is None:
         raw_premises = []
     if not isinstance(raw_premises, list):
-        raise ValueError(f"'premises' must be a list; got {type(raw_premises).__name__}")
-    premises = [_parse_premise(p) for p in raw_premises]
-    description = str(r.get("description", "")).strip()
+        raise ValueError(
+            f"'premises' must be a list; got {type(raw_premises).__name__}"
+        )
+    premises = [_parse_premise(prem) for prem in raw_premises]
+    description = str(rule_raw.get("description", "")).strip()
     return HornRule(
         rule_id=str(rule_id).strip(),
         premises=premises,
@@ -70,15 +72,15 @@ def load_rules_from_dict(data: Union[Dict[str, Any], List[Any]]) -> List[HornRul
       otherwise treat the whole dict as a single rule (one rule only).
     """
     if isinstance(data, list):
-        return [_parse_rule(r) for r in data]
+        return [_parse_rule(rule_item) for rule_item in data]
     if isinstance(data, dict):
         if "rules" in data:
-            # Standard shape: { "rules": [ ... ] }
-            raw = data["rules"]
-            if not isinstance(raw, list):
-                raise ValueError(f"'rules' must be a list; got {type(raw).__name__}")
-            return [_parse_rule(r) for r in raw]
-        # Single rule as dict
+            raw_rules = data["rules"]
+            if not isinstance(raw_rules, list):
+                raise ValueError(
+                    f"'rules' must be a list; got {type(raw_rules).__name__}"
+                )
+            return [_parse_rule(rule_item) for rule_item in raw_rules]
         return [_parse_rule(data)]
     raise ValueError(f"Config must be a dict or list; got {type(data).__name__}")
 
