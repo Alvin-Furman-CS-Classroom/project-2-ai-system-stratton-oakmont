@@ -60,6 +60,7 @@ class InferenceResult:
     truth_assignments: Dict[str, bool]
     derived_facts: Tuple[str, ...]
     conflict: bool
+    truncated: bool = False  # True if inference hit max_steps limit
 
 
 def forward_chain(
@@ -67,7 +68,7 @@ def forward_chain(
     truth_assignments: Dict[str, bool],
     rules: Iterable[HornRule],
     max_steps: int = MAX_FORWARD_CHAIN_STEPS,
-) -> Tuple[Set[str], List[str], List[InferenceStep]]:
+) -> Tuple[Set[str], List[str], List[InferenceStep], bool]:
     """
     Apply Horn rules until no new facts can be derived (fixed-point).
 
@@ -77,7 +78,8 @@ def forward_chain(
         max_steps: Safety limit to prevent infinite loops.
 
     Returns:
-        Tuple of (derived_facts, fired_rule_ids, inference_chain).
+        Tuple of (derived_facts, fired_rule_ids, inference_chain, truncated).
+        truncated is True if max_steps was reached before completion.
     """
 
     # Keep track of what we've already concluded so we don't repeat forever.
@@ -119,10 +121,10 @@ def forward_chain(
                 changed = True
 
                 if steps >= max_steps:
-                    # Safety limit (shouldn't happen with sane rules).
-                    return derived, fired, chain
+                    # Safety limit reached - return with truncated flag.
+                    return derived, fired, chain, True
 
-    return derived, fired, chain
+    return derived, fired, chain, False
 
 
 def choose_action(truth_assignments: Dict[str, bool]) -> Tuple[TradingAction, bool]:
@@ -369,7 +371,7 @@ def evaluate_rules_on_indicators(
     truth_assignments: Dict[str, bool] = dict(base_truths)
 
     applied_rules = list(rules) if rules is not None else default_trading_rules()
-    derived, fired, chain = forward_chain(
+    derived, fired, chain, truncated = forward_chain(
         truth_assignments=truth_assignments, rules=applied_rules
     )
     # 3) Convert the final facts into BUY/SELL/HOLD.
@@ -381,6 +383,7 @@ def evaluate_rules_on_indicators(
         truth_assignments=truth_assignments,
         derived_facts=tuple(sorted(derived)),
         conflict=conflict,
+        truncated=truncated,
     )
 
 
