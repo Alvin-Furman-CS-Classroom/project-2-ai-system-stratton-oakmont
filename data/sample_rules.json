@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "rule_id": "BUY_MOMENTUM_1",
+      "premises": [
+        {"symbol": "RSI_OVERSOLD"},
+        {"symbol": "MACD_POSITIVE"},
+        {"symbol": "GOLDEN_CROSS"},
+        {"symbol": "VOLATILITY_HIGH", "negated": true}
+      ],
+      "conclusion": "BUY",
+      "description": "Classic momentum buy: oversold RSI + positive MACD + uptrend"
+    },
+    {
+      "rule_id": "SELL_MOMENTUM_1",
+      "premises": [
+        {"symbol": "RSI_OVERBOUGHT"},
+        {"symbol": "MACD_NEGATIVE"},
+        {"symbol": "DEATH_CROSS"}
+      ],
+      "conclusion": "SELL",
+      "description": "Classic momentum sell: overbought RSI + negative MACD + downtrend"
+    }
+  ]
+}
