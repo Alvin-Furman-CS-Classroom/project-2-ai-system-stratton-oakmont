@@ -1,7 +1,7 @@
-"""Backtest trading strategies over OHLCV history.
+"""Backtest engine: OHLCV → indicators → Module 1 rules → returns and Sharpe.
 
-Computes indicators from price data, runs Module 1's rule engine on each bar,
-and produces returns and performance metrics.
+Converts price/volume bars to RSI, MACD, MAs; evaluates rules per bar; computes
+position returns and annualized Sharpe ratio.
 """
 
 from __future__ import annotations

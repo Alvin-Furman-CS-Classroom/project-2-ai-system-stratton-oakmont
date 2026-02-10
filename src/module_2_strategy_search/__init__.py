@@ -1,6 +1,7 @@
-"""Module 2: Strategy Parameter Search (A*, Beam Search).
+"""Module 2: Strategy Parameter Search.
 
-Searches over parameter ranges to find top configurations by Sharpe ratio.
+Public API for informed search (A*, Beam Search) over trading-rule parameter
+space. Returns top-k CandidateStrategies ranked by backtest Sharpe ratio.
 """
 
 from .backtest import backtest, indicators_from_ohlcv, sharpe_ratio

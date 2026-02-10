@@ -1,3 +1,7 @@
+"""Shared types: TradingAction, MarketIndicators, ParamRanges, CandidateStrategy.
+
+Used by Module 1 (KB) and Module 2 (search); CandidateStrategy handoff M2→M3.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

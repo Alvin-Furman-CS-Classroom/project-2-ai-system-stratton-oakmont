@@ -1,4 +1,4 @@
-"""Demo: Module 2 Strategy Parameter Search."""
+"""Demo: Beam Search on synthetic OHLCV → top-5 strategies by Sharpe."""
 
 from __future__ import annotations
 
