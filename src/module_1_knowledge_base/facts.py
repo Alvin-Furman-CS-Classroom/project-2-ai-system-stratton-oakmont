@@ -24,22 +24,29 @@ class FactDefinition:
 
 
 DEFAULT_PARAMS: Params = {
-    # Simple defaults. Later modules can tune these numbers and pass them as `params`.
-    # RSI thresholds
+    # Simple, finance-motivated defaults. Later modules can tune these numbers
+    # and pass overrides as `params`.
+    # RSI thresholds: 30/70 are the classic oversold/overbought levels; the
+    # neutral band (40–60) captures sideways markets with no strong momentum.
     "rsi_oversold": 30.0,
     "rsi_overbought": 70.0,
     "rsi_neutral_low": 40.0,
     "rsi_neutral_high": 60.0,
-    # MACD thresholds
+    # MACD thresholds: epsilon≈0 treats values near zero as flat; strong
+    # threshold flags only clearly positive/negative momentum regimes.
     "macd_epsilon": 0.0,
     "macd_strong_threshold": 0.5,
-    # Trend strength (percentage margin for MA crossover)
+    # Trend strength: require MA20 to exceed MA50 by at least 2% before calling
+    # a trend “strong” to avoid noise around the crossover.
     "ma_crossover_margin": 0.02,  # 2% margin for "strong" trend
-    # Volume thresholds
+    # Volume thresholds: 1M+ marks unusually high absolute volume for many
+    # liquid equities; a 2× multiplier relative to a 500k baseline marks true
+    # “surge” days rather than routine fluctuations.
     "volume_high": 1_000_000.0,
     "volume_surge_multiplier": 2.0,
     "volume_average": 500_000.0,
-    # Volatility thresholds
+    # Volatility thresholds: daily volatility above 3% is treated as
+    # high/turbulent; below 1% is a calm, low-volatility regime.
     "volatility_high": 0.03,
     "volatility_low": 0.01,
 }
