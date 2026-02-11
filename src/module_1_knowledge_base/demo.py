@@ -44,15 +44,15 @@ def main():
         volatility=0.01,   # Low volatility
     )
 
-    print("=== Bullish Market Example ===")
+    print("\n=== Bullish Market Example ===")
     print(
         f"Indicators: RSI={bullish.rsi}, MACD={bullish.macd}, "
         f"MA20={bullish.ma20}, MA50={bullish.ma50}"
     )
-    
+
     facts = indicators_to_facts(bullish)
     print(f"\nFacts (True only): {[k for k, v in facts.items() if v]}")
-    
+
     result = evaluate_rules_on_indicators(bullish)
     print(f"\nAction: {result.action.value}")
     print(f"Fired Rules: {result.fired_rules}")
@@ -75,7 +75,7 @@ def main():
         f"Indicators: RSI={bearish.rsi}, MACD={bearish.macd}, "
         f"MA20={bearish.ma20}, MA50={bearish.ma50}"
     )
-    
+
     result = evaluate_rules_on_indicators(bearish)
     print(f"\nAction: {result.action.value}")
     print(f"Fired Rules: {result.fired_rules}")
@@ -98,6 +98,25 @@ def main():
     print(f"Fired Rules: {result.fired_rules}")
     print("\nInference Chain:")
     print_inference_chain(result)
+
+
+if __name__ == "__main__":
+    main()
+
+    # Example: Neutral market (no signal)
+    neutral = MarketIndicators(
+        rsi=50,
+        macd=0.0,
+        ma20=100,
+        ma50=100,
+        volume=500_000,
+        volatility=0.02,
+    )
+
+    print("\n=== Neutral Market Example ===")
+    result = evaluate_rules_on_indicators(neutral)
+    print(f"Action: {result.action.value}")
+    print(f"Fired Rules: {result.fired_rules}")
 
 
 if __name__ == "__main__":
