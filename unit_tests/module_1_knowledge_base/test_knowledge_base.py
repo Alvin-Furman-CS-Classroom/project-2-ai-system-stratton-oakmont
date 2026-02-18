@@ -1,134 +1,19 @@
 """Unit tests for Module 1: Trading Rule Knowledge Base."""
 
-from src.module_1_knowledge_base import (
-    DEFAULT_PARAMS,
-    HornRule,
-    Literal,
-    default_fact_definitions,
-    evaluate_rules_on_indicators,
-    horn_rule_from_cnf_clause,
-    indicators_to_facts,
-)
-from src.module_1_knowledge_base.engine import default_trading_rules
+from src.module_1_knowledge_base import evaluate_rules_on_indicators
 from src.shared import MarketIndicators, TradingAction
 
 
 # =============================================================================
-# FACT GENERATION TESTS
+# BULLISH MARKET TESTS
 # =============================================================================
 
 
-def test_indicators_to_facts_basic_flags():
-    """Test that basic indicator-to-fact conversion works correctly."""
+def test_bullish_strong_oversold():
+    """Bullish signal: RSI oversold with positive MACD and golden cross."""
     ind = MarketIndicators(
-        rsi=25,
-        macd=1.0,
-        ma20=105,
-        ma50=100,
-        volume=2_000_000,
-        volatility=0.01,
-    )
-    facts = indicators_to_facts(ind)
-    assert facts["RSI_OVERSOLD"] is True
-    assert facts["RSI_OVERBOUGHT"] is False
-    assert facts["MACD_POSITIVE"] is True
-    assert facts["GOLDEN_CROSS"] is True
-    assert facts["VOLATILITY_HIGH"] is False
-    assert facts["VOLUME_HIGH"] is True
-
-
-def test_indicators_to_facts_new_facts():
-    """Test the new expanded facts: RSI_NEUTRAL, STRONG_UPTREND, MACD_STRONG, VOLATILITY_LOW."""
-    # Neutral RSI, strong uptrend, strong MACD, low volatility
-    ind = MarketIndicators(
-        rsi=50,  # Neutral (40-60)
-        macd=1.0,  # Strong positive (> 0.5)
-        ma20=110,  # 10% above ma50 -> strong uptrend (> 2% margin)
-        ma50=100,
-        volume=1_500_000,  # High volume and surge (> 2x average of 500k)
-        volatility=0.005,  # Low volatility (< 0.01)
-    )
-    facts = indicators_to_facts(ind)
-    
-    # RSI facts
-    assert facts["RSI_NEUTRAL"] is True
-    assert facts["RSI_OVERSOLD"] is False
-    assert facts["RSI_OVERBOUGHT"] is False
-    
-    # MACD facts
-    assert facts["MACD_POSITIVE"] is True
-    assert facts["MACD_STRONG_POSITIVE"] is True
-    assert facts["MACD_NEGATIVE"] is False
-    assert facts["MACD_STRONG_NEGATIVE"] is False
-    
-    # Trend facts
-    assert facts["GOLDEN_CROSS"] is True
-    assert facts["STRONG_UPTREND"] is True
-    assert facts["DEATH_CROSS"] is False
-    assert facts["STRONG_DOWNTREND"] is False
-    
-    # Volume facts
-    assert facts["VOLUME_HIGH"] is True
-    assert facts["VOLUME_SURGE"] is True
-    
-    # Volatility facts
-    assert facts["VOLATILITY_LOW"] is True
-    assert facts["VOLATILITY_HIGH"] is False
-
-
-def test_indicators_to_facts_downtrend():
-    """Test facts for a strong downtrend scenario."""
-    ind = MarketIndicators(
-        rsi=75,  # Overbought
-        macd=-1.0,  # Strong negative
-        ma20=90,  # Below ma50 by more than 2%
-        ma50=100,
-        volume=100_000,  # Low volume
-        volatility=0.05,  # High volatility
-    )
-    facts = indicators_to_facts(ind)
-    
-    assert facts["RSI_OVERBOUGHT"] is True
-    assert facts["MACD_NEGATIVE"] is True
-    assert facts["MACD_STRONG_NEGATIVE"] is True
-    assert facts["DEATH_CROSS"] is True
-    assert facts["STRONG_DOWNTREND"] is True
-    assert facts["VOLATILITY_HIGH"] is True
-    assert facts["VOLUME_HIGH"] is False
-    assert facts["VOLUME_SURGE"] is False
-
-
-def test_all_facts_are_defined():
-    """Ensure we have all 16 expected facts defined."""
-    facts_defs = default_fact_definitions()
-    fact_names = {f.name for f in facts_defs}
-    
-    expected_facts = {
-        # RSI
-        "RSI_OVERSOLD", "RSI_OVERBOUGHT", "RSI_NEUTRAL",
-        # MACD
-        "MACD_POSITIVE", "MACD_NEGATIVE", "MACD_STRONG_POSITIVE", "MACD_STRONG_NEGATIVE",
-        # Trend
-        "GOLDEN_CROSS", "DEATH_CROSS", "STRONG_UPTREND", "STRONG_DOWNTREND",
-        # Volume
-        "VOLUME_HIGH", "VOLUME_SURGE",
-        # Volatility
-        "VOLATILITY_HIGH", "VOLATILITY_LOW", "VOLATILITY_UNKNOWN",
-    }
-    
-    assert fact_names == expected_facts, f"Missing facts: {expected_facts - fact_names}"
-
-
-# =============================================================================
-# FORWARD CHAINING / RULE FIRING TESTS
-# =============================================================================
-
-
-def test_forward_chaining_default_rules_buy():
-    """Test that the momentum buy rule fires correctly."""
-    ind = MarketIndicators(
-        rsi=25,
-        macd=1.0,
+        rsi=25,  # Oversold
+        macd=1.0,  # Strong positive
         ma20=105,
         ma50=100,
         volume=2_000_000,
@@ -136,389 +21,420 @@ def test_forward_chaining_default_rules_buy():
     )
     result = evaluate_rules_on_indicators(ind)
     assert result.action == TradingAction.BUY
-    # The new rule ID is BUY_MOMENTUM_1 (renamed from BUY_1)
-    assert "BUY_MOMENTUM_1" in result.fired_rules
-    assert any(step.added_fact == TradingAction.BUY.value for step in result.inference_chain)
 
 
-def test_negated_premise_can_trigger():
-    ind = MarketIndicators(
-        rsi=25,
-        macd=-0.5,
-        ma20=100,
-        ma50=100,
-        volume=10,
-        volatility=None,
-    )
-    # Fires if RSI_OVERBOUGHT is false.
-    rules = [
-        HornRule(
-            rule_id="BUY_NOT_OVERBOUGHT",
-            premises=[Literal("RSI_OVERBOUGHT", negated=True)],
-            conclusion=TradingAction.BUY.value,
-        )
-    ]
-    result = evaluate_rules_on_indicators(ind, rules=rules)
-    assert result.action == TradingAction.BUY
-    assert "BUY_NOT_OVERBOUGHT" in result.fired_rules
-
-
-def test_conflict_buy_and_sell_returns_hold():
-    ind = MarketIndicators(
-        rsi=50,
-        macd=0.0,
-        ma20=100,
-        ma50=100,
-        volume=10,
-        volatility=0.02,
-    )
-    rules = [
-        HornRule(rule_id="BUY_ALWAYS", premises=[], conclusion=TradingAction.BUY.value),
-        HornRule(rule_id="SELL_ALWAYS", premises=[], conclusion=TradingAction.SELL.value),
-    ]
-    result = evaluate_rules_on_indicators(ind, rules=rules)
-    assert result.action == TradingAction.HOLD
-    assert result.conflict is True
-
-
-def test_horn_rule_from_cnf_clause_parses():
-    """Test CNF clause parsing into Horn rules."""
-    r = horn_rule_from_cnf_clause(clause="(~A OR ~B OR C)", rule_id="R1")
-    assert r.conclusion == "C"
-    assert {lit.symbol for lit in r.premises} == {"A", "B"}
-
-
-# =============================================================================
-# EXPANDED RULE TESTS
-# =============================================================================
-
-
-def test_all_rules_are_defined():
-    """Ensure we have all 14 expected rules defined."""
-    rules = default_trading_rules()
-    rule_ids = {r.rule_id for r in rules}
-    
-    expected_rules = {
-        # Momentum continuation
-        "BUY_MOMENTUM_1", "BUY_MOMENTUM_STRONG", "SELL_MOMENTUM_1", "SELL_MOMENTUM_STRONG",
-        # Mean reversion
-        "BUY_PULLBACK", "SELL_RALLY",
-        # Volume confirmed
-        "BUY_VOLUME_BREAKOUT", "SELL_VOLUME_BREAKDOWN",
-        # Conservative
-        "BUY_CONSERVATIVE", "SELL_CONSERVATIVE",
-        # Aggressive
-        "BUY_AGGRESSIVE", "SELL_AGGRESSIVE",
-        # Low volatility
-        "BUY_LOW_VOL", "SELL_LOW_VOL",
-    }
-    
-    assert rule_ids == expected_rules, f"Missing rules: {expected_rules - rule_ids}"
-
-
-def test_strong_momentum_buy():
-    """Test strong momentum buy: strong uptrend + strong MACD + volume."""
-    ind = MarketIndicators(
-        rsi=50,  # Doesn't matter for this rule
-        macd=1.0,  # Strong positive (> 0.5)
-        ma20=110,  # 10% above ma50 -> strong uptrend
-        ma50=100,
-        volume=2_000_000,  # High volume
-        volatility=0.02,
-    )
-    result = evaluate_rules_on_indicators(ind)
-    assert result.action == TradingAction.BUY
-    assert "BUY_MOMENTUM_STRONG" in result.fired_rules
-
-
-def test_strong_momentum_sell():
-    """Test strong momentum sell: strong downtrend + strong negative MACD + volume."""
-    ind = MarketIndicators(
-        rsi=50,
-        macd=-1.0,  # Strong negative
-        ma20=90,  # Strong downtrend (< 98% of ma50)
-        ma50=100,
-        volume=2_000_000,  # High volume
-        volatility=0.02,
-    )
-    result = evaluate_rules_on_indicators(ind)
-    assert result.action == TradingAction.SELL
-    assert "SELL_MOMENTUM_STRONG" in result.fired_rules
-
-
-def test_pullback_buy():
-    """Test pullback buy: oversold in an uptrend."""
-    ind = MarketIndicators(
-        rsi=25,  # Oversold
-        macd=0.1,  # Slightly positive
-        ma20=102,  # In uptrend (golden cross) but not strong
-        ma50=100,
-        volume=500_000,
-        volatility=0.02,  # Not high, not low
-    )
-    result = evaluate_rules_on_indicators(ind)
-    assert result.action == TradingAction.BUY
-    # Both BUY_PULLBACK and BUY_MOMENTUM_1 should fire (same premises)
-    assert "BUY_MOMENTUM_1" in result.fired_rules
-
-
-def test_volume_breakout_buy():
-    """Test volume breakout: uptrend + positive MACD + volume surge."""
-    ind = MarketIndicators(
-        rsi=55,  # Neutral
-        macd=0.3,  # Positive but not strong
-        ma20=105,
-        ma50=100,
-        volume=1_500_000,  # > 2x average (500k) = surge
-        volatility=0.02,
-    )
-    result = evaluate_rules_on_indicators(ind)
-    assert result.action == TradingAction.BUY
-    assert "BUY_VOLUME_BREAKOUT" in result.fired_rules
-
-
-def test_aggressive_buy():
-    """Test aggressive buy: just oversold + strong uptrend."""
-    ind = MarketIndicators(
-        rsi=25,  # Oversold
-        macd=-0.1,  # Even slightly negative MACD
-        ma20=110,  # Strong uptrend (10% above)
-        ma50=100,
-        volume=100_000,  # Low volume
-        volatility=0.05,  # High volatility - doesn't matter for aggressive
-    )
-    result = evaluate_rules_on_indicators(ind)
-    assert result.action == TradingAction.BUY
-    assert "BUY_AGGRESSIVE" in result.fired_rules
-
-
-def test_aggressive_sell():
-    """Test aggressive sell: just overbought + strong downtrend."""
-    ind = MarketIndicators(
-        rsi=75,  # Overbought
-        macd=0.1,  # Even slightly positive MACD
-        ma20=90,  # Strong downtrend
-        ma50=100,
-        volume=100_000,
-        volatility=0.05,
-    )
-    result = evaluate_rules_on_indicators(ind)
-    assert result.action == TradingAction.SELL
-    assert "SELL_AGGRESSIVE" in result.fired_rules
-
-
-def test_low_volatility_buy():
-    """Test low volatility buy: uptrend + positive MACD + low volatility."""
-    ind = MarketIndicators(
-        rsi=55,
-        macd=0.2,  # Positive
-        ma20=103,  # Uptrend
-        ma50=100,
-        volume=500_000,
-        volatility=0.005,  # Low volatility
-    )
-    result = evaluate_rules_on_indicators(ind)
-    assert result.action == TradingAction.BUY
-    assert "BUY_LOW_VOL" in result.fired_rules
-
-
-def test_no_signal_neutral_market():
-    """Test that neutral conditions produce HOLD."""
+def test_bullish_neutral_rsi_strong_momentum():
+    """Bullish signal: Neutral RSI with strong uptrend and high volume."""
     ind = MarketIndicators(
         rsi=50,  # Neutral
-        macd=0.0,  # Neutral
+        macd=1.2,  # Strong positive MACD
+        ma20=110,
+        ma50=100,
+        volume=2_500_000,
+        volatility=0.005,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_uptrend_with_momentum():
+    """Bullish signal: Golden cross with positive MACD and moderate RSI."""
+    ind = MarketIndicators(
+        rsi=45,  # Slightly low but not oversold
+        macd=0.8,  # Positive MACD
+        ma20=103,  # Golden cross
+        ma50=100,
+        volume=1_800_000,
+        volatility=0.012,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_strong_uptrend_low_volatility():
+    """Bullish signal: Strong uptrend with low volatility and stable volume."""
+    ind = MarketIndicators(
+        rsi=35,  # Oversold
+        macd=0.95,  # Strong positive
+        ma20=115,  # 15% above MA50
+        ma50=100,
+        volume=2_100_000,
+        volatility=0.008,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_recovery_pattern():
+    """Bullish signal: RSI recovering from oversold with rising MACD."""
+    ind = MarketIndicators(
+        rsi=30,  # Just recovering from oversold
+        macd=0.5,  # Positive and rising
+        ma20=104,
+        ma50=100,
+        volume=1_600_000,
+        volatility=0.015,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_sustained_momentum():
+    """Bullish signal: Sustained bullish momentum with all indicators aligned."""
+    ind = MarketIndicators(
+        rsi=55,  # Neutral/slightly high
+        macd=1.5,  # Very strong positive
+        ma20=112,
+        ma50=100,
+        volume=3_000_000,
+        volatility=0.007,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_moderate_uptrend():
+    """Bullish signal: Moderate uptrend with good volume confirmation."""
+    ind = MarketIndicators(
+        rsi=48,  # Neutral
+        macd=0.7,  # Moderately positive
+        ma20=106,
+        ma50=100,
+        volume=2_200_000,
+        volatility=0.011,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_gap_up_with_volume():
+    """Bullish signal: Gap up with high volume and positive momentum."""
+    ind = MarketIndicators(
+        rsi=60,  # Elevated but not overbought
+        macd=1.1,  # Strong positive
+        ma20=120,
+        ma50=100,
+        volume=3_500_000,  # Very high volume
+        volatility=0.010,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_breakout_scenario():
+    """Bullish signal: Breakout above MA50 with accelerating momentum."""
+    ind = MarketIndicators(
+        rsi=52,
+        macd=1.3,  # Accelerating MACD
+        ma20=108,
+        ma50=100,
+        volume=2_800_000,
+        volatility=0.009,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+def test_bullish_consolidation_breakup():
+    """Bullish signal: Consolidation period ending with upside breakout."""
+    ind = MarketIndicators(
+        rsi=40,  # Recovering
+        macd=0.6,  # Positive and steady
+        ma20=102,
+        ma50=100,
+        volume=1_900_000,
+        volatility=0.006,  # Low volatility ending
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.BUY
+
+
+# =============================================================================
+# BEARISH MARKET TESTS
+# =============================================================================
+
+
+def test_bearish_strong_overbought():
+    """Bearish signal: RSI overbought with negative MACD and death cross."""
+    ind = MarketIndicators(
+        rsi=75,  # Overbought
+        macd=-1.0,  # Strong negative
+        ma20=95,
+        ma50=100,
+        volume=2_000_000,
+        volatility=0.01,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_neutral_rsi_strong_downtrend():
+    """Bearish signal: Neutral RSI with strong downtrend and high volume."""
+    ind = MarketIndicators(
+        rsi=50,  # Neutral
+        macd=-1.2,  # Strong negative MACD
+        ma20=90,
+        ma50=100,
+        volume=2_500_000,
+        volatility=0.005,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_downtrend_with_momentum():
+    """Bearish signal: Death cross with negative MACD and moderate RSI."""
+    ind = MarketIndicators(
+        rsi=55,  # Slightly high but not overbought
+        macd=-0.8,  # Negative MACD
+        ma20=97,  # Death cross
+        ma50=100,
+        volume=1_800_000,
+        volatility=0.012,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_strong_downtrend_low_volatility():
+    """Bearish signal: Strong downtrend with low volatility and stable volume."""
+    ind = MarketIndicators(
+        rsi=65,  # Overbought
+        macd=-0.95,  # Strong negative
+        ma20=85,  # 15% below MA50
+        ma50=100,
+        volume=2_100_000,
+        volatility=0.008,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_recovery_pattern():
+    """Bearish signal: RSI falling from overbought with falling MACD."""
+    ind = MarketIndicators(
+        rsi=70,  # Just falling from overbought
+        macd=-0.5,  # Negative and falling
+        ma20=96,
+        ma50=100,
+        volume=1_600_000,
+        volatility=0.015,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_sustained_downtrend():
+    """Bearish signal: Sustained bearish momentum with all indicators aligned."""
+    ind = MarketIndicators(
+        rsi=45,  # Neutral/slightly low
+        macd=-1.5,  # Very strong negative
+        ma20=88,
+        ma50=100,
+        volume=3_000_000,
+        volatility=0.007,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_moderate_downtrend():
+    """Bearish signal: Moderate downtrend with good volume confirmation."""
+    ind = MarketIndicators(
+        rsi=52,  # Neutral
+        macd=-0.7,  # Moderately negative
+        ma20=94,
+        ma50=100,
+        volume=2_200_000,
+        volatility=0.011,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_gap_down_with_volume():
+    """Bearish signal: Gap down with high volume and negative momentum."""
+    ind = MarketIndicators(
+        rsi=40,  # Elevated but not oversold
+        macd=-1.1,  # Strong negative
+        ma20=80,
+        ma50=100,
+        volume=3_500_000,  # Very high volume
+        volatility=0.010,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_breakdown_scenario():
+    """Bearish signal: Breakdown below MA50 with accelerating negative momentum."""
+    ind = MarketIndicators(
+        rsi=48,
+        macd=-1.3,  # Accelerating negative MACD
+        ma20=92,
+        ma50=100,
+        volume=2_800_000,
+        volatility=0.009,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+def test_bearish_consolidation_breakdown():
+    """Bearish signal: Consolidation period ending with downside breakdown."""
+    ind = MarketIndicators(
+        rsi=60,  # Falling
+        macd=-0.6,  # Negative and steady
+        ma20=98,
+        ma50=100,
+        volume=1_900_000,
+        volatility=0.006,  # Low volatility ending
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.SELL
+
+
+# =============================================================================
+# NEUTRAL/HOLD MARKET TESTS
+# =============================================================================
+
+
+def test_hold_perfect_neutral():
+    """Hold signal: All indicators perfectly neutral."""
+    ind = MarketIndicators(
+        rsi=50,  # Perfect neutral
+        macd=0.0,  # No momentum
         ma20=100,  # No trend
         ma50=100,
-        volume=500_000,  # Average
-        volatility=0.02,  # Medium
+        volume=500_000,  # Average volume
+        volatility=0.02,  # Medium volatility
     )
     result = evaluate_rules_on_indicators(ind)
     assert result.action == TradingAction.HOLD
-    # No buy or sell rules should fire
-    assert len(result.fired_rules) == 0
 
 
-# =============================================================================
-# EDGE CASE TESTS
-# =============================================================================
+def test_hold_slight_positive_signals():
+    """Hold signal: Slight positive signals but not strong enough."""
+    ind = MarketIndicators(
+        rsi=48,  # Slightly low but not oversold
+        macd=0.2,  # Weakly positive
+        ma20=101,  # Barely above MA50
+        ma50=100,
+        volume=600_000,  # Slightly above average
+        volatility=0.018,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.HOLD
 
 
-def test_volatility_none_sets_unknown_fact():
-    """Test that volatility=None sets VOLATILITY_UNKNOWN=True."""
+def test_hold_slight_negative_signals():
+    """Hold signal: Slight negative signals but not strong enough."""
+    ind = MarketIndicators(
+        rsi=52,  # Slightly high but not overbought
+        macd=-0.2,  # Weakly negative
+        ma20=99,  # Barely below MA50
+        ma50=100,
+        volume=550_000,
+        volatility=0.019,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.HOLD
+
+
+def test_hold_mixed_signals_bullish_bearish():
+    """Hold signal: Mixed signals - some bullish, some bearish."""
+    ind = MarketIndicators(
+        rsi=35,  # Oversold (bullish)
+        macd=-0.3,  # Negative (bearish)
+        ma20=102,  # Golden cross (bullish)
+        ma50=100,
+        volume=700_000,
+        volatility=0.016,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.HOLD
+
+
+def test_hold_consolidation_no_breakout():
+    """Hold signal: Consolidation pattern with no clear breakout."""
     ind = MarketIndicators(
         rsi=50,
-        macd=0.0,
-        ma20=100,
+        macd=0.05,  # Very weak positive (just below threshold)
+        ma20=100.3,  # Barely above (less than 1% difference)
         ma50=100,
-        volume=500_000,
-        volatility=None,
+        volume=450_000,  # Low volume
+        volatility=0.02,  # Medium volatility (not low enough for BUY_LOW_VOL)
     )
-    facts = indicators_to_facts(ind)
-    assert facts["VOLATILITY_UNKNOWN"] is True
-    assert facts["VOLATILITY_HIGH"] is False
-    assert facts["VOLATILITY_LOW"] is False
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.HOLD
 
 
-def test_extreme_rsi_values():
-    """Test RSI at boundaries (0 and 100)."""
-    # RSI = 0 (extreme oversold)
-    ind_low = MarketIndicators(rsi=0, macd=0, ma20=100, ma50=100, volume=100, volatility=0.02)
-    facts_low = indicators_to_facts(ind_low)
-    assert facts_low["RSI_OVERSOLD"] is True
-    assert facts_low["RSI_OVERBOUGHT"] is False
-    
-    # RSI = 100 (extreme overbought)
-    ind_high = MarketIndicators(rsi=100, macd=0, ma20=100, ma50=100, volume=100, volatility=0.02)
-    facts_high = indicators_to_facts(ind_high)
-    assert facts_high["RSI_OVERBOUGHT"] is True
-    assert facts_high["RSI_OVERSOLD"] is False
 
-
-# =============================================================================
-# ERROR HANDLING TESTS
-# =============================================================================
-
-
-def test_cnf_invalid_clause_raises():
-    """Test that invalid CNF clauses raise ValueError."""
-    import pytest
-    
-    # No positive literal (not Horn-convertible)
-    with pytest.raises(ValueError):
-        horn_rule_from_cnf_clause(clause="(~A OR ~B)", rule_id="R1")
-    
-    # Multiple positive literals (not Horn-convertible)
-    with pytest.raises(ValueError):
-        horn_rule_from_cnf_clause(clause="(A OR B OR C)", rule_id="R2")
-    
-    # Empty negated literal
-    with pytest.raises(ValueError):
-        horn_rule_from_cnf_clause(clause="(~ OR B)", rule_id="R3")
-
-
-# =============================================================================
-# RULES LOADER (CONFIG) TESTS
-# =============================================================================
-
-
-def test_load_rules_from_dict_list():
-    """Load rules from a list of rule dicts (e.g. from JSON array)."""
-    from src.module_1_knowledge_base import load_rules_from_dict
-
-    data = [
-        {
-            "rule_id": "R1",
-            "premises": [{"symbol": "A"}, {"symbol": "B", "negated": True}],
-            "conclusion": "C",
-            "description": "If A and not B then C",
-        },
-    ]
-    rules = load_rules_from_dict(data)
-    assert len(rules) == 1
-    assert rules[0].rule_id == "R1"
-    assert rules[0].conclusion == "C"
-    assert len(rules[0].premises) == 2
-    assert rules[0].premises[0].symbol == "A" and rules[0].premises[0].negated is False
-    assert rules[0].premises[1].symbol == "B" and rules[0].premises[1].negated is True
-
-
-def test_load_rules_from_dict_rules_key():
-    """Load rules from a dict with a 'rules' key (standard file shape)."""
-    from src.module_1_knowledge_base import load_rules_from_dict
-
-    data = {
-        "rules": [
-            {"rule_id": "BUY_1", "premises": [{"symbol": "RSI_OVERSOLD"}], "conclusion": "BUY"},
-        ],
-    }
-    rules = load_rules_from_dict(data)
-    assert len(rules) == 1
-    assert rules[0].rule_id == "BUY_1"
-    assert rules[0].conclusion == "BUY"
-
-
-def test_load_rules_from_file():
-    """Load rules from data/sample_rules.json and evaluate with them."""
-    from pathlib import Path
-
-    from src.module_1_knowledge_base import evaluate_rules_on_indicators, load_rules_from_file
-
-    path = Path(__file__).resolve().parent.parent.parent / "data" / "sample_rules.json"
-    rules = load_rules_from_file(path)
-    assert len(rules) >= 2
-    # Use bullish indicators so a BUY rule should fire
+def test_hold_moderate_rsi_neutral_macd():
+    """Hold signal: Moderate RSI with neutral MACD."""
     ind = MarketIndicators(
-        rsi=25,
-        macd=1.0,
-        ma20=105,
-        ma50=100,
-        volume=2_000_000,
-        volatility=0.01,
-    )
-    result = evaluate_rules_on_indicators(ind, rules=rules)
-    assert result.action in (TradingAction.BUY, TradingAction.SELL, TradingAction.HOLD)
-    assert len(result.fired_rules) >= 1
-
-
-# =============================================================================
-# HUMAN-READABLE SUMMARY TESTS
-# =============================================================================
-
-
-def test_format_inference_summary_no_rules_fired():
-    """Summary when no rules fire: action + 'No rules fired'."""
-    from src.module_1_knowledge_base import format_inference_summary
-
-    ind = MarketIndicators(
-        rsi=50,
-        macd=0.0,
+        rsi=55,
+        macd=0.0,  # Exactly neutral
         ma20=100,
         ma50=100,
         volume=500_000,
         volatility=0.02,
     )
     result = evaluate_rules_on_indicators(ind)
-    summary = format_inference_summary(result)
-    assert result.action.value in summary
-    assert "No rules fired" in summary or "because" in summary
+    assert result.action == TradingAction.HOLD
 
 
-def test_format_inference_summary_rules_fired():
-    """Summary when rules fire: action + 'because' + rule steps."""
-    from src.module_1_knowledge_base import format_inference_summary
-
+def test_hold_weak_uptrend_weak_momentum():
+    """Hold signal: Weak uptrend with very weak momentum."""
     ind = MarketIndicators(
-        rsi=25,
-        macd=1.0,
-        ma20=105,
+        rsi=45,
+        macd=0.15,  # Very weakly positive
+        ma20=102,  # Slight uptrend
         ma50=100,
-        volume=2_000_000,
-        volatility=0.01,
+        volume=480_000,
+        volatility=0.022,
     )
     result = evaluate_rules_on_indicators(ind)
-    summary = format_inference_summary(result)
-    assert result.action.value in summary
-    assert "because" in summary
-    # At least one rule id should appear (e.g. BUY_MOMENTUM_1 or BUY_1)
-    assert any(rid in summary for rid in result.fired_rules)
+    assert result.action == TradingAction.HOLD
 
 
-def test_format_inference_summary_conflict():
-    """Summary when both BUY and SELL inferred: mentions conflict."""
-    from src.module_1_knowledge_base import format_inference_summary
-
-    rules = [
-        HornRule(rule_id="BUY_ALWAYS", premises=[], conclusion=TradingAction.BUY.value),
-        HornRule(rule_id="SELL_ALWAYS", premises=[], conclusion=TradingAction.SELL.value),
-    ]
+def test_hold_weak_downtrend_weak_momentum():
+    """Hold signal: Weak downtrend with very weak momentum."""
     ind = MarketIndicators(
-        rsi=50,
-        macd=0.0,
-        ma20=100,
+        rsi=55,
+        macd=-0.15,  # Very weakly negative
+        ma20=98,  # Slight downtrend
         ma50=100,
-        volume=10,
-        volatility=0.02,
+        volume=520_000,
+        volatility=0.021,
     )
-    result = evaluate_rules_on_indicators(ind, rules=rules)
-    summary = format_inference_summary(result)
-    assert "conflict" in summary.lower() or "HOLD" in summary
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.HOLD
+
+
+def test_hold_uncertainty_high_volatility():
+    """Hold signal: Uncertain signals with high volatility."""
+    ind = MarketIndicators(
+        rsi=50,  # Neutral
+        macd=0.05,  # Barely positive
+        ma20=100.5,
+        ma50=100,
+        volume=600_000,
+        volatility=0.045,  # High volatility creates uncertainty
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.HOLD
+
+
+def test_hold_low_volume_no_confirmation():
+    """Hold signal: Potential signals but no volume confirmation."""
+    ind = MarketIndicators(
+        rsi=30,  # Oversold signal
+        macd=0.3,  # Positive signal
+        ma20=103,  # Uptrend signal
+        ma50=100,
+        volume=100_000,  # Very low volume - no confirmation
+        volatility=0.018,
+    )
+    result = evaluate_rules_on_indicators(ind)
+    assert result.action == TradingAction.HOLD

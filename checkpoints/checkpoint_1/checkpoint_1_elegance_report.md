@@ -89,6 +89,7 @@ Module 1 demonstrates **professional-quality code** with excellent structure, cl
 **Minor Issues:**
 - Some threshold values in `DEFAULT_PARAMS` (e.g., `"volume_high": 1_000_000.0`) could benefit from a brief comment explaining their basis
 - The `demo.py` hardcodes example values, though this is acceptable for demo code
+ - To reach **4/4** on this criterion, add short inline comments above each key group in `DEFAULT_PARAMS` in `facts.py` (e.g., why 30/70 for RSI, why 2.0 for `volume_surge_multiplier`) and, optionally, lift the magic numbers in `demo.py` into named constants or a small config dict so that all tunable values live in one place.
 
 ---
 

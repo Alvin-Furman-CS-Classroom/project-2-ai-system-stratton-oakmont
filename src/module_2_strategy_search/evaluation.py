@@ -1,4 +1,4 @@
-"""Evaluate candidate parameter configurations via backtest."""
+"""Single-candidate evaluation: params + OHLCV → CandidateStrategy with Sharpe, metrics, explanation."""
 
 from __future__ import annotations
 

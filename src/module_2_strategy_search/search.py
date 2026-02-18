@@ -1,4 +1,4 @@
-"""A* and Beam Search for strategy parameter optimization."""
+"""Beam Search (and A* stub) over param space; returns top-k by Sharpe."""
 
 from __future__ import annotations
 

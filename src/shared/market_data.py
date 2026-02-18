@@ -1,7 +1,6 @@
-"""Load and generate OHLCV market data for backtesting.
+"""OHLCV loading: Yahoo Finance, CSV, and synthetic data for backtesting.
 
-Module 2 uses this for strategy evaluation. Data format: pandas DataFrame
-with columns Open, High, Low, Close, Volume (standard yfinance convention).
+Data format: pandas DataFrame with columns Open, High, Low, Close, Volume.
 """
 
 from __future__ import annotations
