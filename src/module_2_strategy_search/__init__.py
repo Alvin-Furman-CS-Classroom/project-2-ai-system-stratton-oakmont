@@ -7,12 +7,14 @@ from .backtest import backtest, indicators_from_ohlcv, sharpe_ratio
 from .evaluation import evaluate_candidate
 from .search import (
     DEFAULT_PARAM_RANGES,
+    astar_search,
     beam_search,
     search_top_strategies,
 )
 
 __all__ = [
     "DEFAULT_PARAM_RANGES",
+    "astar_search",
     "beam_search",
     "backtest",
     "evaluate_candidate",

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence
+import heapq
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -63,6 +64,137 @@ def _get_successors(
     return neighbors
 
 
+# ---------------------------------------------------------------------------
+# A* Search
+# ---------------------------------------------------------------------------
+
+
+def _param_key(params: Dict[str, float]) -> Tuple[Tuple[str, float], ...]:
+    """Convert a params dict to a hashable tuple for set membership checks."""
+    return tuple(sorted(params.items()))
+
+
+def _heuristic(
+    params: Dict[str, float],
+    current_sharpe: float,
+    param_ranges: ParamRanges,
+) -> float:
+    """
+    Admissible heuristic estimating the remaining improvement potential.
+
+    Measures how much room each parameter has to move within its valid range.
+    Configurations near range centers can be perturbed in either direction,
+    so they have more optimization room.  Configurations pinned at a boundary
+    have less room and are likely closer to a local extremum.
+
+    The heuristic is scaled by the magnitude of the current Sharpe (with a
+    floor) so the bonus stays proportional to actual performance.  The result
+    is always >= 0, and the scaling factor is conservative enough to remain
+    admissible in practice (never wildly overestimates remaining gain).
+    """
+    if not param_ranges:
+        return 0.0
+
+    total_room = 0.0
+    counted = 0
+    for key, (lo, hi) in param_ranges.items():
+        span = hi - lo
+        if span <= 0 or key not in params:
+            continue
+        # Normalized distance to nearest boundary in [0, 0.5]
+        dist = min(params[key] - lo, hi - params[key]) / span
+        total_room += dist
+        counted += 1
+
+    avg_room = total_room / counted if counted else 0.0
+
+    # Scale: more room → more potential.  Use a conservative multiplier so
+    # the heuristic stays optimistic but not wildly so.
+    scale = max(abs(current_sharpe), 0.5)
+    return avg_room * scale * 0.5
+
+
+def astar_search(
+    ohlcv: pd.DataFrame,
+    param_ranges: ParamRanges,
+    rules: Optional[Sequence[HornRule]] = None,
+    top_k: int = 10,
+    max_expansions: int = 50,
+) -> List[CandidateStrategy]:
+    """
+    A* search over the strategy parameter space.
+
+    Explores parameter configurations using a priority queue ordered by
+    f(n) = sharpe(n) + h(n), where h(n) is a heuristic estimating the
+    remaining improvement potential from that region of the space.  Nodes
+    with higher estimated total value are expanded first.
+
+    Args:
+        ohlcv: OHLCV history for backtesting.
+        param_ranges: Valid bounds for each parameter.
+        rules: HornRules (defaults to default trading rules).
+        top_k: Number of best strategies to return.
+        max_expansions: Maximum nodes to expand (controls search budget).
+
+    Returns:
+        Top-k CandidateStrategies found, ranked by Sharpe ratio.
+    """
+    # Start from center of parameter ranges
+    start = {k: (lo + hi) / 2 for k, (lo, hi) in param_ranges.items()}
+    start_candidate = evaluate_candidate(start, ohlcv, rules)
+
+    h = _heuristic(start, start_candidate.sharpe, param_ranges)
+
+    # Min-heap on negative estimated value so highest (sharpe + h) is popped first.
+    counter = 0
+    open_set: List[Tuple[float, int, Dict[str, float]]] = []
+    heapq.heappush(open_set, (-(start_candidate.sharpe + h), counter, start))
+    counter += 1
+
+    closed: set[Tuple[Tuple[str, float], ...]] = set()
+    # Map from param_key → best CandidateStrategy seen for that config.
+    evaluated: Dict[Tuple[Tuple[str, float], ...], CandidateStrategy] = {
+        _param_key(start): start_candidate
+    }
+
+    expansions = 0
+    while open_set and expansions < max_expansions:
+        _neg_f, _tie, params = heapq.heappop(open_set)
+
+        key = _param_key(params)
+        if key in closed:
+            continue
+        closed.add(key)
+        expansions += 1
+
+        # Expand neighbors
+        for neighbor_params in _get_successors(params, param_ranges):
+            n_key = _param_key(neighbor_params)
+            if n_key in closed:
+                continue
+
+            candidate = evaluate_candidate(neighbor_params, ohlcv, rules)
+
+            # Keep the best evaluation per config
+            if n_key not in evaluated or candidate.sharpe > evaluated[n_key].sharpe:
+                evaluated[n_key] = candidate
+
+            h = _heuristic(neighbor_params, candidate.sharpe, param_ranges)
+            heapq.heappush(
+                open_set, (-(candidate.sharpe + h), counter, neighbor_params)
+            )
+            counter += 1
+
+    # Collect all evaluated strategies, sort by Sharpe, return top-k
+    results = sorted(evaluated.values(), key=lambda c: c.sharpe, reverse=True)
+    return results[:top_k]
+
+
+# ---------------------------------------------------------------------------
+# Beam Search
+# ---------------------------------------------------------------------------
+
+
 def beam_search(
     ohlcv: pd.DataFrame,
     param_ranges: ParamRanges,
@@ -121,7 +253,7 @@ def search_top_strategies(
         param_ranges: Search bounds (defaults to DEFAULT_PARAM_RANGES).
         rules: HornRules (defaults to default_trading_rules).
         top_k: Number of strategies to return.
-        method: "beam" (Beam Search) or "astar" (A* - stub for now).
+        method: "beam" (Beam Search) or "astar" (A* with heuristic).
 
     Returns:
         Top k CandidateStrategies ranked by Sharpe ratio.
@@ -131,6 +263,5 @@ def search_top_strategies(
     if method == "beam":
         return beam_search(ohlcv, ranges, rules, top_k=top_k)
     if method == "astar":
-        # A* stub: use beam search for now
-        return beam_search(ohlcv, ranges, rules, top_k=top_k)
+        return astar_search(ohlcv, ranges, rules, top_k=top_k)
     raise ValueError(f"Unknown search method: {method!r}")
