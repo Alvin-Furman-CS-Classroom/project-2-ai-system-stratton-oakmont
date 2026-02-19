@@ -40,6 +40,10 @@ def _compute_macd_line(close: pd.Series, fast: int = 12, slow: int = 26) -> pd.S
     return ema_fast - ema_slow
 
 
+# Practically there is no need to break apart indicators_from_ohlcv: the loop
+# is coherent and single-purpose; splitting would add indirection without gain.
+
+
 def indicators_from_ohlcv(ohlcv: pd.DataFrame) -> List[Optional[MarketIndicators]]:
     """
     Compute MarketIndicators for each row of OHLCV history.

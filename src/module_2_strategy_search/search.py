@@ -167,6 +167,11 @@ def _heuristic(
     return avg_room * scale * 0.5
 
 
+# Practically there is no need to break apart astar_search or beam_search:
+# each is coherent, single-purpose, and readable; splitting would add indirection
+# without meaningful clarity gain.
+
+
 def astar_search(
     ohlcv: pd.DataFrame,
     param_ranges: ParamRanges,
@@ -211,6 +216,9 @@ def astar_search(
     expansions = 0
     while open_set and expansions < max_expansions:
         _neg_f, _tie, params = heapq.heappop(open_set)
+        if expansions % 10 == 0:
+            best_so_far = max(evaluated.values(), key=lambda c: c.sharpe)
+            print(f"  A* expansion {expansions + 1}/{max_expansions}: {len(evaluated)} configs evaluated, best Sharpe={best_so_far.sharpe:.3f}")
 
         key = _param_key(params)
         if key in closed:
@@ -298,7 +306,7 @@ def beam_search(
         param_ranges, num_points=beam_width
     )
 
-    for _ in range(num_iterations):
+    for iteration in range(num_iterations):
         candidates: List[Dict[str, float]] = list(beam)
         for params in beam:
             candidates.extend(_get_successors(params, param_ranges))
