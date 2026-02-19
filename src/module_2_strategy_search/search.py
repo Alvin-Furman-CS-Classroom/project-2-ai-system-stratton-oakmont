@@ -18,11 +18,12 @@ from .evaluation import evaluate_candidate
 
 
 # Default parameter ranges for search. Module 2 searches within these bounds.
+# RSI ranges use classic financial thresholds: oversold < 30, overbought > 70.
 DEFAULT_PARAM_RANGES: ParamRanges = {
-    "rsi_oversold": (20.0, 40.0),
-    "rsi_overbought": (60.0, 80.0),
-    "rsi_neutral_low": (35.0, 45.0),
-    "rsi_neutral_high": (55.0, 65.0),
+    "rsi_oversold": (0.0, 30.0),
+    "rsi_overbought": (70.0, 100.0),
+    "rsi_neutral_low": (30.0, 50.0),
+    "rsi_neutral_high": (50.0, 70.0),
     "macd_epsilon": (0.0, 0.1),
     "macd_strong_threshold": (0.3, 0.8),
     "ma_crossover_margin": (0.01, 0.05),
@@ -115,6 +116,46 @@ def _diverse_starting_points(
         points.append(point)
 
     return points[:num_points]
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _diversity_filter(
+    strategies: List[CandidateStrategy],
+    max_keep: int,
+    min_sharpe_diff: float = 0.005,
+) -> List[CandidateStrategy]:
+    """
+    Filter strategies to maintain diversity.
+
+    Keeps top strategies but ensures we don't fill results with near-
+    identical Sharpe values. If multiple strategies share the same Sharpe
+    (within min_sharpe_diff), only a limited number are kept to leave
+    room for genuinely different strategies.
+
+    Used by both A* and beam search.
+    """
+    if not strategies:
+        return []
+
+    strategies.sort(key=lambda c: c.sharpe, reverse=True)
+    kept: List[CandidateStrategy] = []
+    sharpe_counts: Dict[int, int] = {}  # bucketed sharpe -> count
+    max_per_bucket = max(2, max_keep // 3)
+
+    for s in strategies:
+        bucket = int(s.sharpe / min_sharpe_diff) if min_sharpe_diff > 0 else 0
+        count = sharpe_counts.get(bucket, 0)
+        if count < max_per_bucket:
+            kept.append(s)
+            sharpe_counts[bucket] = count + 1
+        if len(kept) >= max_keep:
+            break
+
+    return kept
 
 
 # ---------------------------------------------------------------------------
@@ -216,9 +257,6 @@ def astar_search(
     expansions = 0
     while open_set and expansions < max_expansions:
         _neg_f, _tie, params = heapq.heappop(open_set)
-        if expansions % 10 == 0:
-            best_so_far = max(evaluated.values(), key=lambda c: c.sharpe)
-            print(f"  A* expansion {expansions + 1}/{max_expansions}: {len(evaluated)} configs evaluated, best Sharpe={best_so_far.sharpe:.3f}")
 
         key = _param_key(params)
         if key in closed:
@@ -254,39 +292,6 @@ def astar_search(
 # ---------------------------------------------------------------------------
 
 
-def _diversity_filter(
-    strategies: List[CandidateStrategy],
-    max_keep: int,
-    min_sharpe_diff: float = 0.005,
-) -> List[CandidateStrategy]:
-    """
-    Filter strategies to maintain diversity in the beam.
-
-    Keeps top strategies but ensures we don't fill the beam with near-
-    identical Sharpe values. If multiple strategies share the same Sharpe
-    (within min_sharpe_diff), only a limited number are kept to leave
-    room for genuinely different strategies.
-    """
-    if not strategies:
-        return []
-
-    strategies.sort(key=lambda c: c.sharpe, reverse=True)
-    kept: List[CandidateStrategy] = []
-    sharpe_counts: Dict[int, int] = {}  # bucketed sharpe -> count
-    max_per_bucket = max(2, max_keep // 3)
-
-    for s in strategies:
-        bucket = int(s.sharpe / min_sharpe_diff) if min_sharpe_diff > 0 else 0
-        count = sharpe_counts.get(bucket, 0)
-        if count < max_per_bucket:
-            kept.append(s)
-            sharpe_counts[bucket] = count + 1
-        if len(kept) >= max_keep:
-            break
-
-    return kept
-
-
 def beam_search(
     ohlcv: pd.DataFrame,
     param_ranges: ParamRanges,
@@ -306,7 +311,7 @@ def beam_search(
         param_ranges, num_points=beam_width
     )
 
-    for iteration in range(num_iterations):
+    for _ in range(num_iterations):
         candidates: List[Dict[str, float]] = list(beam)
         for params in beam:
             candidates.extend(_get_successors(params, param_ranges))
