@@ -19,10 +19,10 @@ from .evaluation import evaluate_candidate
 
 # Default parameter ranges for search. Module 2 searches within these bounds.
 DEFAULT_PARAM_RANGES: ParamRanges = {
-    "rsi_oversold": (0.0, 30.0),
-    "rsi_overbought": (70.1, 100.0),
-    "rsi_neutral_low": (30.1, 50.0),
-    "rsi_neutral_high": (50.1, 70),
+    "rsi_oversold": (20.0, 40.0),
+    "rsi_overbought": (60.0, 80.0),
+    "rsi_neutral_low": (35.0, 45.0),
+    "rsi_neutral_high": (55.0, 65.0),
     "macd_epsilon": (0.0, 0.1),
     "macd_strong_threshold": (0.3, 0.8),
     "ma_crossover_margin": (0.01, 0.05),
