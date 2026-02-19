@@ -1,4 +1,4 @@
-"""Demo: Compare Beam Search vs A* on synthetic OHLCV → top strategies by Sharpe.
+"""Demo: Compare Beam Search vs A* on real/synthetic OHLCV → top strategies by Sharpe.
 
 Splits data into train/test to validate generalization.
 Shows key parameters and a buy-and-hold benchmark.
@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
 from src.module_2_strategy_search import search_top_strategies
 from src.module_2_strategy_search.backtest import backtest, sharpe_ratio, WARMUP_BARS
-from src.shared.market_data import generate_synthetic_ohlcv
+from src.shared.market_data import generate_synthetic_ohlcv, load_ohlcv_yahoo
 
 
 def _fmt_strategy(strategy, idx):
@@ -53,14 +53,31 @@ def main() -> None:
     print("Module 2 Demo: Beam Search vs A* Strategy Search")
     print("=" * 60)
 
-    # Generate data and split 50/50 train/test
-    total_days, train_days = 504, 252
-    ohlcv = generate_synthetic_ohlcv(days=total_days, seed=42)
-    ohlcv_train = ohlcv.iloc[:train_days].copy()
-    ohlcv_test = ohlcv.iloc[train_days:].copy()
+    # Data configuration
+    use_real_data = True
+    symbol = "SPY"
+    period = "2y"
+    
+    # Load data
+    if use_real_data:
+        try:
+            ohlcv = load_ohlcv_yahoo(symbol=symbol, period=period)
+            data_desc = f"{symbol} ({period})"
+        except Exception as e:
+            print(f"Failed to load {symbol}: {e}. Using synthetic data.")
+            ohlcv = generate_synthetic_ohlcv(days=504, seed=42)
+            data_desc = "synthetic (seed=42)"
+    else:
+        ohlcv = generate_synthetic_ohlcv(days=504, seed=42)
+        data_desc = "synthetic (seed=42)"
+
+    # Split train/test
+    train_bars = len(ohlcv) // 2
+    ohlcv_train = ohlcv.iloc[:train_bars].copy()
+    ohlcv_test = ohlcv.iloc[train_bars:].copy()
 
     bh_sharpe, bh_ret = _buy_and_hold(ohlcv_train)
-    print(f"\nData: {train_days} train / {total_days - train_days} test bars (seed=42)")
+    print(f"\nData: {train_bars} train / {len(ohlcv) - train_bars} test bars ({data_desc})")
     print(f"Buy-and-Hold baseline (train): Sharpe={bh_sharpe:+.3f}, Return={bh_ret:+.2%}")
 
     top_k = 5
@@ -72,7 +89,7 @@ def main() -> None:
         for i, s in enumerate(strategies, 1):
             print(_fmt_strategy(s, i))
 
-        # Validate best strategy on held-out test data
+        # Validate on test set
         best = strategies[0]
         rets, _ = backtest(ohlcv_test, best.params)
         oos_sharpe = sharpe_ratio(rets)
