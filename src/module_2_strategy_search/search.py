@@ -134,7 +134,8 @@ def _diversity_filter(
     Keeps top strategies but ensures we don't fill results with near-
     identical Sharpe values. If multiple strategies share the same Sharpe
     (within min_sharpe_diff), only a limited number are kept to leave
-    room for genuinely different strategies.
+    room for genuinely different strategies.  Strategies with identical
+    parameter vectors are also deduplicated.
 
     Used by both A* and beam search.
     """
@@ -144,9 +145,16 @@ def _diversity_filter(
     strategies.sort(key=lambda c: c.sharpe, reverse=True)
     kept: List[CandidateStrategy] = []
     sharpe_counts: Dict[int, int] = {}  # bucketed sharpe -> count
+    seen_params: set[Tuple[Tuple[str, float], ...]] = set()
     max_per_bucket = max(2, max_keep // 3)
 
     for s in strategies:
+        # Skip exact duplicate parameter configurations
+        p_key = _param_key(s.params)
+        if p_key in seen_params:
+            continue
+        seen_params.add(p_key)
+
         bucket = int(s.sharpe / min_sharpe_diff) if min_sharpe_diff > 0 else 0
         count = sharpe_counts.get(bucket, 0)
         if count < max_per_bucket:

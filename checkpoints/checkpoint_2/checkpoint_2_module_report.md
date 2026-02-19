@@ -1,14 +1,14 @@
 # Checkpoint 2: Module Rubric Report
 
 **Module:** Module 2 - Strategy Parameter Search  
-**Date:** February 5, 2026  
+**Date:** February 19, 2026  
 **Topics:** Informed Search, A*, Beam Search, Heuristics, Backtesting
 
 ---
 
 ## Summary
 
-Module 2 is **fully functional and well-integrated** into the pipeline. It implements parameter search over trading-rule thresholds using A* and Beam Search, with backtesting via Module 1's rule engine. The module has comprehensive test coverage (19 unit tests + 2 integration tests, all passing), clear documentation, and provides a clean handoff (`CandidateStrategy`) to Module 3.
+Module 2 is **fully functional and well-integrated** into the pipeline. It implements parameter search over trading-rule thresholds using A* and Beam Search, with backtesting via Module 1's rule engine. The module has comprehensive test coverage (35 unit tests + 2 integration tests, all passing), clear documentation, and provides a clean handoff (`CandidateStrategy`) to Module 3.
 
 ---
 
@@ -27,8 +27,8 @@ Module 2 is **fully functional and well-integrated** into the pipeline. It imple
 - ✅ **`search_top_strategies()`:** Main entrypoint supports `beam` and `astar` methods; returns top-k `CandidateStrategy`
 - ✅ **`evaluate_candidate()`:** Produces `CandidateStrategy` with params, sharpe, total_return, win_rate, max_drawdown, explanation
 - ✅ **Market data:** `load_ohlcv_yahoo()`, `load_ohlcv_csv()`, `generate_synthetic_ohlcv()` for tests
-- ✅ **Demo runs successfully** comparing Beam vs A* on synthetic data
-- ✅ **All 19 unit tests + 2 integration tests pass**
+- ✅ **Demo runs successfully** comparing Beam vs A* with train/test split and buy-and-hold benchmark
+- ✅ **All 35 unit tests + 2 integration tests pass**
 
 ---
 
@@ -49,7 +49,7 @@ Module 2 is **fully functional and well-integrated** into the pipeline. It imple
 
 **Assessment:** Comprehensive test coverage across search, backtest, and evaluation.
 
-**Test Categories (19 unit + 2 integration):**
+**Test Categories (35 unit + 2 integration):**
 
 | Category | Tests | Coverage |
 |----------|-------|----------|
@@ -61,6 +61,10 @@ Module 2 is **fully functional and well-integrated** into the pipeline. It imple
 | Search Top Strategies | 3 | List, ordering, astar method |
 | A* Heuristic | 4 | Hashable key, nonnegative, center vs boundary, empty ranges |
 | A* Search | 4 | Top-k, ordering, valid params, single expansion |
+| _clamp_params | 3 | Within-range, clips bounds, ignores extra keys |
+| _get_successors | 3 | Returns neighbors, stays in range, two-param perturbations |
+| _diverse_starting_points | 4 | Count, center first, within bounds, deterministic seed |
+| _diversity_filter | 6 | Empty, max_keep, same-bucket cap, diverse Sharpes, sorted, param dedup |
 | Integration (M1+M2) | 2 | Backtest produces actions, search returns usable candidates |
 
 **Strengths:**
@@ -103,7 +107,7 @@ Module 2 is **fully functional and well-integrated** into the pipeline. It imple
 ```python
 # Primary inputs
 ohlcv: pd.DataFrame  # Columns Open, High, Low, Close, Volume
-param_ranges: ParamRanges  # Dict[str, tuple[float, float]] e.g. {"rsi_oversold": (20.0, 40.0)}
+param_ranges: ParamRanges  # Dict[str, tuple[float, float]] e.g. {"rsi_oversold": (0.0, 30.0)}
 rules: Optional[Sequence[HornRule]]  # Defaults to M1 default_trading_rules()
 top_k: int = 10
 method: str = "beam"  # or "astar"
@@ -230,5 +234,4 @@ Top 5 strategies:
 ## Recommendations
 
 1. **For Checkpoint 2:** Ensure commit history shows balanced participation
-2. **Optional:** Gate or remove `print` in `astar_search` for production use
-3. **Integration:** Verify M1+M2 integration tests pass before presentation
+2. **Integration:** Verify M1+M2 integration tests pass before presentation

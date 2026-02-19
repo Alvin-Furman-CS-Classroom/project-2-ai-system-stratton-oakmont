@@ -15,7 +15,14 @@ from src.module_2_strategy_search import (
     sharpe_ratio,
 )
 from src.module_2_strategy_search.backtest import WARMUP_BARS
-from src.module_2_strategy_search.search import _heuristic, _param_key
+from src.module_2_strategy_search.search import (
+    _clamp_params,
+    _diverse_starting_points,
+    _diversity_filter,
+    _get_successors,
+    _heuristic,
+    _param_key,
+)
 from src.shared import CandidateStrategy
 from src.shared.market_data import generate_synthetic_ohlcv
 
@@ -214,3 +221,177 @@ def test_search_top_strategies_astar_method():
     assert isinstance(top, list)
     assert all(isinstance(s, CandidateStrategy) for s in top)
     assert len(top) <= 3
+
+
+# -----------------------------------------------------------------------------
+# _clamp_params
+# -----------------------------------------------------------------------------
+
+
+def test_clamp_params_within_range_unchanged():
+    """Params already within range are returned unchanged."""
+    ranges = {"a": (0.0, 10.0), "b": (1.0, 5.0)}
+    params = {"a": 5.0, "b": 3.0}
+    result = _clamp_params(params, ranges)
+    assert result == params
+
+
+def test_clamp_params_clips_to_bounds():
+    """Params outside range are clamped to the nearest bound."""
+    ranges = {"a": (0.0, 10.0), "b": (1.0, 5.0)}
+    params = {"a": -5.0, "b": 99.0}
+    result = _clamp_params(params, ranges)
+    assert result["a"] == 0.0
+    assert result["b"] == 5.0
+
+
+def test_clamp_params_ignores_extra_keys():
+    """Params not in ranges pass through untouched."""
+    ranges = {"a": (0.0, 10.0)}
+    params = {"a": 15.0, "extra": 42.0}
+    result = _clamp_params(params, ranges)
+    assert result["a"] == 10.0
+    assert result["extra"] == 42.0
+
+
+# -----------------------------------------------------------------------------
+# _get_successors
+# -----------------------------------------------------------------------------
+
+
+def test_get_successors_returns_neighbors():
+    """Successors are generated for each param (±step)."""
+    ranges = {"x": (0.0, 10.0), "y": (0.0, 1.0)}
+    params = {"x": 5.0, "y": 0.5}
+    neighbors = _get_successors(params, ranges, step_fraction=0.25)
+    # At least 2 single-param perturbations per param → 4 minimum
+    assert len(neighbors) >= 4
+
+
+def test_get_successors_stay_within_range():
+    """All successors have params clamped within valid ranges."""
+    ranges = {"x": (0.0, 10.0), "y": (0.0, 1.0)}
+    params = {"x": 0.0, "y": 1.0}  # at boundaries
+    neighbors = _get_successors(params, ranges, step_fraction=0.5)
+    for n in neighbors:
+        assert 0.0 <= n["x"] <= 10.0
+        assert 0.0 <= n["y"] <= 1.0
+
+
+def test_get_successors_two_param_perturbations():
+    """When key trading params are present, two-param perturbations are generated."""
+    ranges = {
+        "rsi_oversold": (0.0, 30.0),
+        "rsi_overbought": (70.0, 100.0),
+        "macd_epsilon": (0.0, 0.1),
+    }
+    params = {k: (lo + hi) / 2 for k, (lo, hi) in ranges.items()}
+    neighbors = _get_successors(params, ranges)
+    # 3 params × 2 single = 6, plus C(3,2)=3 pairs × 4 combos = 12 → 18 total
+    assert len(neighbors) == 18
+
+
+# -----------------------------------------------------------------------------
+# _diverse_starting_points
+# -----------------------------------------------------------------------------
+
+
+def test_diverse_starting_points_returns_requested_count():
+    """Returns exactly num_points starting configurations."""
+    ranges = {"a": (0.0, 10.0), "b": (1.0, 5.0)}
+    points = _diverse_starting_points(ranges, num_points=5)
+    assert len(points) == 5
+
+
+def test_diverse_starting_points_first_is_center():
+    """The first point is the center of each range."""
+    ranges = {"a": (0.0, 10.0), "b": (2.0, 8.0)}
+    points = _diverse_starting_points(ranges, num_points=1)
+    assert points[0]["a"] == pytest.approx(5.0)
+    assert points[0]["b"] == pytest.approx(5.0)
+
+
+def test_diverse_starting_points_within_bounds():
+    """All starting points have values within their parameter ranges."""
+    ranges = {"x": (0.0, 10.0), "y": (5.0, 15.0), "z": (-1.0, 1.0)}
+    points = _diverse_starting_points(ranges, num_points=10)
+    for p in points:
+        for k, (lo, hi) in ranges.items():
+            assert lo <= p[k] <= hi, f"{k}={p[k]} outside [{lo}, {hi}]"
+
+
+def test_diverse_starting_points_deterministic_with_seed():
+    """Same seed produces identical starting points."""
+    ranges = {"a": (0.0, 10.0), "b": (1.0, 5.0)}
+    p1 = _diverse_starting_points(ranges, num_points=5, seed=99)
+    p2 = _diverse_starting_points(ranges, num_points=5, seed=99)
+    assert p1 == p2
+
+
+# -----------------------------------------------------------------------------
+# _diversity_filter
+# -----------------------------------------------------------------------------
+
+
+def test_diversity_filter_empty_returns_empty():
+    """Empty input returns empty list."""
+    assert _diversity_filter([], max_keep=5) == []
+
+
+def test_diversity_filter_respects_max_keep():
+    """Never returns more than max_keep strategies."""
+    strategies = [
+        CandidateStrategy(params={"a": float(i)}, sharpe=float(i) * 0.1)
+        for i in range(20)
+    ]
+    result = _diversity_filter(strategies, max_keep=5)
+    assert len(result) <= 5
+
+
+def test_diversity_filter_limits_same_sharpe_bucket():
+    """Strategies with identical Sharpe are capped per bucket."""
+    # All have the same Sharpe → should not fill all slots
+    strategies = [
+        CandidateStrategy(params={"a": float(i)}, sharpe=1.0)
+        for i in range(10)
+    ]
+    result = _diversity_filter(strategies, max_keep=6)
+    assert len(result) <= 6
+    # max_per_bucket = max(2, 6//3) = 2, so at most 2 from the one bucket
+    assert len(result) <= 2
+
+
+def test_diversity_filter_keeps_diverse_sharpes():
+    """Strategies with different Sharpe values all survive."""
+    strategies = [
+        CandidateStrategy(params={"a": 1.0}, sharpe=1.0),
+        CandidateStrategy(params={"a": 2.0}, sharpe=0.5),
+        CandidateStrategy(params={"a": 3.0}, sharpe=0.0),
+    ]
+    result = _diversity_filter(strategies, max_keep=3)
+    assert len(result) == 3
+
+
+def test_diversity_filter_sorted_descending():
+    """Output is sorted by Sharpe ratio descending."""
+    strategies = [
+        CandidateStrategy(params={"a": 1.0}, sharpe=0.2),
+        CandidateStrategy(params={"a": 2.0}, sharpe=0.8),
+        CandidateStrategy(params={"a": 3.0}, sharpe=0.5),
+    ]
+    result = _diversity_filter(strategies, max_keep=3)
+    sharpes = [s.sharpe for s in result]
+    assert sharpes == sorted(sharpes, reverse=True)
+
+
+def test_diversity_filter_deduplicates_identical_params():
+    """Strategies with identical params are deduplicated regardless of Sharpe bucket."""
+    strategies = [
+        CandidateStrategy(params={"a": 1.0, "b": 2.0}, sharpe=1.0),
+        CandidateStrategy(params={"a": 1.0, "b": 2.0}, sharpe=1.0),
+        CandidateStrategy(params={"a": 3.0, "b": 4.0}, sharpe=0.5),
+    ]
+    result = _diversity_filter(strategies, max_keep=5)
+    # Only one copy of the duplicate params should survive
+    param_keys = [tuple(sorted(s.params.items())) for s in result]
+    assert len(param_keys) == len(set(param_keys))
