@@ -24,31 +24,35 @@ class FactDefinition:
 
 
 DEFAULT_PARAMS: Params = {
-    # Simple, finance-motivated defaults. Later modules can tune these numbers
-    # and pass overrides as `params`.
-    # RSI thresholds: 30/70 are the classic oversold/overbought levels; the
-    # neutral band (40–60) captures sideways markets with no strong momentum.
-    "rsi_oversold": 30.0,
-    "rsi_overbought": 70.0,
-    "rsi_neutral_low": 40.0,
-    "rsi_neutral_high": 60.0,
-    # MACD thresholds: epsilon≈0 treats values near zero as flat; strong
-    # threshold flags only clearly positive/negative momentum regimes.
-    "macd_epsilon": 0.0,
-    "macd_strong_threshold": 0.5,
-    # Trend strength: require MA20 to exceed MA50 by at least 2% before calling
-    # a trend “strong” to avoid noise around the crossover.
-    "ma_crossover_margin": 0.02,  # 2% margin for "strong" trend
-    # Volume thresholds: 1M+ marks unusually high absolute volume for many
-    # liquid equities; a 2× multiplier relative to a 500k baseline marks true
-    # “surge” days rather than routine fluctuations.
-    "volume_high": 1_000_000.0,
-    "volume_surge_multiplier": 2.0,
-    "volume_average": 500_000.0,
-    # Volatility thresholds: daily volatility above 3% is treated as
-    # high/turbulent; below 1% is a calm, low-volatility regime.
-    "volatility_high": 0.03,
-    "volatility_low": 0.01,
+    # Defaults aligned with Module 2's search ranges (center of each range).
+    # Module 2 will search around these values to find optimal thresholds.
+    
+    # RSI thresholds: Module 2 searches (20-40) for oversold, (60-80) for overbought.
+    # Centers at 30/70 maintain the classic trading levels while allowing optimization.
+    "rsi_oversold": 30.0,        # Center of (20.0, 40.0)
+    "rsi_overbought": 70.0,      # Center of (60.0, 80.0)
+    "rsi_neutral_low": 40.0,     # Center of (35.0, 45.0)
+    "rsi_neutral_high": 60.0,    # Center of (55.0, 65.0)
+    
+    # MACD thresholds: epsilon defines the "flat" zone, strong threshold marks
+    # clearly bullish/bearish momentum. Module 2 searches (0.0-0.1) and (0.3-0.8).
+    "macd_epsilon": 0.05,        # Center of (0.0, 0.1)
+    "macd_strong_threshold": 0.55, # Center of (0.3, 0.8)
+    
+    # Trend strength: MA20 must exceed MA50 by this margin to qualify as "strong".
+    # Module 2 searches (0.01-0.05) to balance sensitivity vs noise filtering.
+    "ma_crossover_margin": 0.03,  # Center of (0.01, 0.05)
+    
+    # Volume thresholds: Module 2 searches (500k-2M) for high volume baseline,
+    # (1.5-3.0) for surge multiplier, and (200k-800k) for average baseline.
+    "volume_high": 1_250_000.0,   # Center of (500_000.0, 2_000_000.0)
+    "volume_surge_multiplier": 2.25, # Center of (1.5, 3.0)
+    "volume_average": 500_000.0,  # Center of (200_000.0, 800_000.0)
+    
+    # Volatility thresholds: Module 2 searches (0.02-0.05) for high volatility,
+    # (0.005-0.02) for low volatility. Centers balance regime detection.
+    "volatility_high": 0.035,     # Center of (0.02, 0.05)
+    "volatility_low": 0.0125,     # Center of (0.005, 0.02)
 }
 
 
