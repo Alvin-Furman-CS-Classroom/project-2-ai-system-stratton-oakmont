@@ -1,10 +1,12 @@
-"""Beam Search (and A* stub) over param space; returns top-k by Sharpe."""
+"""Beam Search and A* over param space; returns top-k by Sharpe."""
 
 from __future__ import annotations
 
 import heapq
+import itertools
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
 import pandas as pd
 
 from src.shared import CandidateStrategy, ParamRanges
@@ -44,24 +46,75 @@ def _clamp_params(params: Dict[str, float], ranges: ParamRanges) -> Dict[str, fl
 def _get_successors(
     params: Dict[str, float],
     ranges: ParamRanges,
-    step_fraction: float = 0.1,
+    step_fraction: float = 0.25,
 ) -> List[Dict[str, float]]:
     """
-    Generate neighboring parameter configs by perturbing one param at a time.
+    Generate neighboring parameter configs by perturbing one or two params.
 
-    For each param, add ±step_fraction of (max-min). Returns distinct neighbors.
+    For each param, add ±step_fraction of (max-min). Also generates a limited
+    set of two-parameter perturbations for better exploration. Returns
+    distinct neighbors.
     """
     neighbors: List[Dict[str, float]] = []
-    for key, (low, high) in ranges.items():
-        if key not in params:
-            continue
+    keys_in_params = [k for k in ranges if k in params]
+
+    # Single-parameter perturbations
+    for key in keys_in_params:
+        low, high = ranges[key]
         step = step_fraction * (high - low)
         for delta in (-step, step):
             new_params = dict(params)
             new_params[key] = params[key] + delta
             new_params = _clamp_params(new_params, ranges)
             neighbors.append(new_params)
+
+    # Two-parameter perturbations for key trading params to escape plateaus
+    key_params = [k for k in ("rsi_oversold", "rsi_overbought", "macd_epsilon",
+                               "ma_crossover_margin") if k in params]
+    for k1, k2 in itertools.combinations(key_params, 2):
+        lo1, hi1 = ranges[k1]
+        lo2, hi2 = ranges[k2]
+        s1 = step_fraction * (hi1 - lo1)
+        s2 = step_fraction * (hi2 - lo2)
+        for d1, d2 in [(s1, s2), (s1, -s2), (-s1, s2), (-s1, -s2)]:
+            new_params = dict(params)
+            new_params[k1] = params[k1] + d1
+            new_params[k2] = params[k2] + d2
+            new_params = _clamp_params(new_params, ranges)
+            neighbors.append(new_params)
+
     return neighbors
+
+
+def _diverse_starting_points(
+    param_ranges: ParamRanges,
+    num_points: int = 5,
+    seed: int = 0,
+) -> List[Dict[str, float]]:
+    """
+    Generate diverse starting points across the parameter space.
+
+    Returns the center point plus additional points sampled at different
+    positions (quartiles) to cover the search space broadly.
+    """
+    rng = np.random.default_rng(seed)
+    keys = sorted(param_ranges.keys())
+    center = {k: (param_ranges[k][0] + param_ranges[k][1]) / 2 for k in keys}
+    points = [center]
+
+    # Add points at quartile positions (25% and 75% of each range)
+    low_point = {k: param_ranges[k][0] + 0.25 * (param_ranges[k][1] - param_ranges[k][0])
+                 for k in keys}
+    high_point = {k: param_ranges[k][0] + 0.75 * (param_ranges[k][1] - param_ranges[k][0])
+                  for k in keys}
+    points.extend([low_point, high_point])
+
+    # Random samples for remaining points
+    for _ in range(max(0, num_points - len(points))):
+        point = {k: rng.uniform(param_ranges[k][0], param_ranges[k][1]) for k in keys}
+        points.append(point)
+
+    return points[:num_points]
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +172,7 @@ def astar_search(
     param_ranges: ParamRanges,
     rules: Optional[Sequence[HornRule]] = None,
     top_k: int = 10,
-    max_expansions: int = 50,
+    max_expansions: int = 80,
 ) -> List[CandidateStrategy]:
     """
     A* search over the strategy parameter space.
@@ -139,23 +192,21 @@ def astar_search(
     Returns:
         Top-k CandidateStrategies found, ranked by Sharpe ratio.
     """
-    # Start from center of parameter ranges
-    start = {k: (lo + hi) / 2 for k, (lo, hi) in param_ranges.items()}
-    start_candidate = evaluate_candidate(start, ohlcv, rules)
-
-    h = _heuristic(start, start_candidate.sharpe, param_ranges)
+    # Start from diverse points across the parameter space
+    starting_points = _diverse_starting_points(param_ranges, num_points=5)
 
     # Min-heap on negative estimated value so highest (sharpe + h) is popped first.
     counter = 0
     open_set: List[Tuple[float, int, Dict[str, float]]] = []
-    heapq.heappush(open_set, (-(start_candidate.sharpe + h), counter, start))
-    counter += 1
-
     closed: set[Tuple[Tuple[str, float], ...]] = set()
-    # Map from param_key → best CandidateStrategy seen for that config.
-    evaluated: Dict[Tuple[Tuple[str, float], ...], CandidateStrategy] = {
-        _param_key(start): start_candidate
-    }
+    evaluated: Dict[Tuple[Tuple[str, float], ...], CandidateStrategy] = {}
+
+    for start in starting_points:
+        start_candidate = evaluate_candidate(start, ohlcv, rules)
+        h = _heuristic(start, start_candidate.sharpe, param_ranges)
+        heapq.heappush(open_set, (-(start_candidate.sharpe + h), counter, start))
+        counter += 1
+        evaluated[_param_key(start)] = start_candidate
 
     expansions = 0
     while open_set and expansions < max_expansions:
@@ -185,14 +236,47 @@ def astar_search(
             )
             counter += 1
 
-    # Collect all evaluated strategies, sort by Sharpe, return top-k
+    # Collect all evaluated strategies with diversity filtering
     results = sorted(evaluated.values(), key=lambda c: c.sharpe, reverse=True)
-    return results[:top_k]
+    return _diversity_filter(results, top_k)
 
 
 # ---------------------------------------------------------------------------
 # Beam Search
 # ---------------------------------------------------------------------------
+
+
+def _diversity_filter(
+    strategies: List[CandidateStrategy],
+    max_keep: int,
+    min_sharpe_diff: float = 0.005,
+) -> List[CandidateStrategy]:
+    """
+    Filter strategies to maintain diversity in the beam.
+
+    Keeps top strategies but ensures we don't fill the beam with near-
+    identical Sharpe values. If multiple strategies share the same Sharpe
+    (within min_sharpe_diff), only a limited number are kept to leave
+    room for genuinely different strategies.
+    """
+    if not strategies:
+        return []
+
+    strategies.sort(key=lambda c: c.sharpe, reverse=True)
+    kept: List[CandidateStrategy] = []
+    sharpe_counts: Dict[int, int] = {}  # bucketed sharpe -> count
+    max_per_bucket = max(2, max_keep // 3)
+
+    for s in strategies:
+        bucket = int(s.sharpe / min_sharpe_diff) if min_sharpe_diff > 0 else 0
+        count = sharpe_counts.get(bucket, 0)
+        if count < max_per_bucket:
+            kept.append(s)
+            sharpe_counts[bucket] = count + 1
+        if len(kept) >= max_keep:
+            break
+
+    return kept
 
 
 def beam_search(
@@ -206,11 +290,13 @@ def beam_search(
     """
     Beam Search over parameter space.
 
-    Start from center of ranges, expand neighbors, keep top-k by Sharpe per iteration.
+    Starts from diverse initial points across the ranges, expands neighbors,
+    and keeps top-k by Sharpe per iteration with diversity enforcement.
     """
-    # Center of ranges as initial state
-    center = {k: (lo + hi) / 2 for k, (lo, hi) in param_ranges.items()}
-    beam: List[Dict[str, float]] = [center]
+    # Start from diverse points instead of just the center
+    beam: List[Dict[str, float]] = _diverse_starting_points(
+        param_ranges, num_points=beam_width
+    )
 
     for _ in range(num_iterations):
         candidates: List[Dict[str, float]] = list(beam)
@@ -226,16 +312,15 @@ def beam_search(
                 seen.add(key)
                 unique.append(p)
 
-        # Evaluate and keep top beam_width
+        # Evaluate and keep top beam_width with diversity
         scored = [evaluate_candidate(p, ohlcv, rules) for p in unique]
-        scored.sort(key=lambda c: c.sharpe, reverse=True)
-        beam_params = [s.params for s in scored[:beam_width]]
-        beam = beam_params
+        scored = _diversity_filter(scored, beam_width)
+        beam = [s.params for s in scored]
 
     # Final top_k from last beam
     final = [evaluate_candidate(p, ohlcv, rules) for p in beam]
-    final.sort(key=lambda c: c.sharpe, reverse=True)
-    return final[:top_k]
+    final = _diversity_filter(final, top_k)
+    return final
 
 
 def search_top_strategies(
