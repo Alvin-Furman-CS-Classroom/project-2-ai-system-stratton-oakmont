@@ -77,9 +77,9 @@ Provide commands to run tests and describe any test data needed.
 
 | Checkpoint | Date | Modules Included | Status | Evidence |
 | ---------- | ---- | ---------------- | ------ | -------- |
-| 1 | Feb 11 | Module 1, Module 2 |  |  |
-| 2 | Feb 26 | Module 3 |  |  |
-| 3 | Mar 19 | Module 4 |  |  |
+| 1 | Feb 11 | Module 1 |  |  |
+| 2 | Feb 26 | Module 2 |  |  |
+| 3 | Mar 19 | Module 3, Module 4 |  |  |
 | 4 | Apr 2 | Module 5 |  |  |
 
 ## Required Workflow (Agent-Guided)
