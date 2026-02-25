@@ -405,7 +405,7 @@ def test_diversity_filter_deduplicates_identical_params():
 def test_backtest_rejects_non_dataframe():
     """Passing a non-DataFrame raises TypeError with a clear message."""
     with pytest.raises(TypeError, match="must be a pandas DataFrame"):
-        backtest({"Close": [1, 2, 3]}, {"rsi_oversold": 30.0})
+        backtest({"Close": [1, 2, 3]}, {"rsi_oversold": 30.0})  # type: ignore[arg-type]
 
 
 def test_backtest_rejects_missing_columns():
