@@ -8,7 +8,7 @@
 
 ## Summary
 
-Module 1 is **fully functional and well-integrated** into the overall system. It implements a complete propositional logic knowledge base for trading decisions, with forward chaining inference, explainable rule firing, and configurable fact/rule definitions. The module has comprehensive test coverage (26 unit tests, all passing), clear documentation, and provides a clean API for downstream modules (M2, M3).
+Module 1 is **fully functional and well-integrated** into the overall system. It implements a complete propositional logic knowledge base for trading decisions, with forward chaining inference, explainable rule firing, and configurable fact/rule definitions. The module has comprehensive test coverage (30 unit tests, all passing), clear documentation, and provides a clean API for downstream modules (M2, M3).
 
 ---
 
@@ -29,7 +29,7 @@ Module 1 is **fully functional and well-integrated** into the overall system. It
   - Truncation flagged if `max_steps` exceeded
   - Extreme RSI values (0, 100) handled correctly
 - ✅ **Demo runs successfully** with three market scenarios (bullish, bearish, neutral)
-- ✅ **All 26 unit tests pass**
+- ✅ **All 30 unit tests pass**
 
 ---
 
@@ -50,17 +50,13 @@ Module 1 is **fully functional and well-integrated** into the overall system. It
 
 **Assessment:** Comprehensive test coverage with well-designed tests covering meaningful behavior.
 
-**Test Categories (26 tests total):**
+**Test Categories (30 tests total):**
 
 | Category | Tests | Coverage |
 |----------|-------|----------|
-| Fact Generation | 5 | Basic flags, new facts, downtrend, all facts defined, volatility=None |
-| Forward Chaining | 4 | Default rules buy, negated premise, conflict detection, CNF parsing |
-| Expanded Rules | 9 | All 14 rules tested (momentum, pullback, volume breakout, aggressive, low-vol) |
-| Edge Cases | 2 | volatility=None, extreme RSI (0, 100) |
-| Error Handling | 1 | Invalid CNF clauses raise ValueError |
-| Rules Loader | 3 | Load from dict (list/key), load from file |
-| Human Summaries | 3 | No rules fired, rules fired, conflict summary |
+| Bullish Signals | 10 | Strong oversold, neutral RSI + strong momentum, uptrend, low volatility, recovery, sustained, moderate, gap up, breakout, consolidation |
+| Bearish Signals | 10 | Strong overbought, neutral RSI + strong downtrend, downtrend, low volatility, recovery, sustained, moderate, gap down, breakdown, consolidation |
+| Hold/Neutral | 10 | Perfect neutral, slight positive, slight negative, mixed signals, consolidation, moderate RSI, weak uptrend, weak downtrend, high volatility uncertainty, low volume |
 
 **Strengths:**
 - Tests verify behavior, not implementation

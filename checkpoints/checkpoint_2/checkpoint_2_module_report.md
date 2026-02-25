@@ -8,7 +8,7 @@
 
 ## Summary
 
-Module 2 is **fully functional and well-integrated** into the pipeline. It implements parameter search over trading-rule thresholds using A* and Beam Search, with backtesting via Module 1's rule engine. The module has comprehensive test coverage (35 unit tests + 2 integration tests, all passing), clear documentation, and provides a clean handoff (`CandidateStrategy`) to Module 3.
+Module 2 is **fully functional and well-integrated** into the pipeline. It implements parameter search over trading-rule thresholds using A* and Beam Search, with backtesting via Module 1's rule engine. The module has comprehensive test coverage (43 unit tests + 5 integration tests, all passing), clear documentation, and provides a clean handoff (`CandidateStrategy`) to Module 3.
 
 ---
 
@@ -27,8 +27,9 @@ Module 2 is **fully functional and well-integrated** into the pipeline. It imple
 - ✅ **`search_top_strategies()`:** Main entrypoint supports `beam` and `astar` methods; returns top-k `CandidateStrategy`
 - ✅ **`evaluate_candidate()`:** Produces `CandidateStrategy` with params, sharpe, total_return, win_rate, max_drawdown, explanation
 - ✅ **Market data:** `load_ohlcv_yahoo()`, `load_ohlcv_csv()`, `generate_synthetic_ohlcv()` for tests
+- ✅ **Input validation:** `backtest()` validates OHLCV DataFrame structure (type, required columns, minimum rows) with descriptive error messages
 - ✅ **Demo runs successfully** comparing Beam vs A* with train/test split and buy-and-hold benchmark
-- ✅ **All 35 unit tests + 2 integration tests pass**
+- ✅ **All 43 unit tests + 5 integration tests pass**
 
 ---
 
@@ -49,29 +50,32 @@ Module 2 is **fully functional and well-integrated** into the pipeline. It imple
 
 **Assessment:** Comprehensive test coverage across search, backtest, and evaluation.
 
-**Test Categories (35 unit + 2 integration):**
+**Test Categories (43 unit + 5 integration):**
 
 | Category | Tests | Coverage |
 |----------|-------|----------|
 | Sharpe Ratio | 3 | Empty, constant, positive returns |
 | Indicators | 2 | Warmup, required fields |
-| Backtest | 1 | Return/action length |
-| Evaluation | 1 | CandidateStrategy fields |
+| Backtest | 5 | Return/action length, rejects non-DataFrame, rejects missing columns, rejects too-few rows, minimal valid input |
+| Evaluation | 3 | CandidateStrategy fields, all-HOLD produces zero trades, metrics always finite |
 | Beam Search | 1 | Top-k returned |
-| Search Top Strategies | 3 | List, ordering, astar method |
+| Search Top Strategies | 4 | List, ordering, astar method, invalid method raises ValueError |
 | A* Heuristic | 4 | Hashable key, nonnegative, center vs boundary, empty ranges |
 | A* Search | 4 | Top-k, ordering, valid params, single expansion |
+| Beam vs A* Comparison | 1 | Both methods find non-empty results on same data |
 | _clamp_params | 3 | Within-range, clips bounds, ignores extra keys |
 | _get_successors | 3 | Returns neighbors, stays in range, two-param perturbations |
 | _diverse_starting_points | 4 | Count, center first, within bounds, deterministic seed |
 | _diversity_filter | 6 | Empty, max_keep, same-bucket cap, diverse Sharpes, sorted, param dedup |
-| Integration (M1+M2) | 2 | Backtest produces actions, search returns usable candidates |
+| Integration (M1+M2) | 5 | Backtest produces actions, search returns usable candidates, M3 handoff fields verified, returns finite, params within ranges |
 
 **Strengths:**
 - Tests verify behavior, not implementation
 - Synthetic OHLCV used for deterministic tests
+- Negative tests: invalid input types, missing columns, too-few rows, unknown search method
+- Edge cases: all-HOLD strategies, metric finiteness
 - Heuristic properties (admissibility-related) tested
-- Integration tests confirm M1+M2 pipeline works
+- Integration tests confirm M1+M2 pipeline works and validate M3 handoff contract
 
 ---
 
@@ -213,6 +217,8 @@ Top 5 strategies:
   2. Sharpe=0.38 | Return=6.1%, MaxDD=-4.2%, WinRate=52.1%, Trades=102
   ...
 ```
+
+**Performance Note:** On recent real-market data (e.g. SPY), the conservative rule set in Module 1 produces strategies that may underperform buy-and-hold. This is expected: the 14 Horn rules use strict multi-indicator confirmation, which limits trade frequency and aggressiveness. Module 2's job is to find the *best parameter configuration within that rule set* — and it does. Module 3 (GA) is specifically designed to evolve better rule combinations, addressing this gap.
 
 **Feed to Next Module (M3):**
 - Top 10 `CandidateStrategy` objects → M3 genetic algorithm seed population

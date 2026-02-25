@@ -34,7 +34,7 @@ The modules follow both logical dependency (rules → parameters → evolution �
 | ------ | -------- | ------ | ------- | ---------- | ---------- |
 | 1: Trading Rule Knowledge Base | Propositional Logic (Knowledge Bases, Inference, Forward Chaining) | Market indicators (RSI, MACD, MA20, MA50, Volume) and trading rules in CNF format | Trading action (BUY/SELL/HOLD), fired rules, inference chain | None | CP1 (Feb 11) |
 | 2: Strategy Parameter Search | Informed Search (A*, Beam Search, Heuristics) | Parameter ranges defining search space, historical market data | Top 10 candidate parameter configurations ranked by Sharpe ratio | Module 1 | CP2 (Feb 26) |
-| 3: Strategy Evolution Engine | Advanced Search (Genetic Algorithms) | Top 10 candidates from Module 2, historical data, GA parameters | Top 5 evolved strategies with performance metrics (Sharpe, return, win rate, max drawdown) | Module 2 | CP2 (Feb 26) |
+| 3: Strategy Evolution Engine | Advanced Search (Genetic Algorithms) | Top 10 candidates from Module 2, historical data, GA parameters | Top 5 evolved strategies with performance metrics (Sharpe, return, win rate, max drawdown) | Module 2 | CP3 (Mar 19) |
 | 4: Market Sentiment Classifier | Supervised Learning (Logistic Regression, Classification) | News sentiment data from Alpha Vantage API (scores, volume, topics, trend) | Sentiment regime (Bullish/Bearish/Neutral), confidence, recommended strategy | Module 3 | CP3 (Mar 19) |
 | 5: Adaptive Position Sizing Agent | Reinforcement Learning (MDP, Q-Learning) | Sentiment regime from Module 4, strategy metrics, volatility, capital | Position size (1-15%), Q-values, reasoning, risk assessment | Module 4 | CP4 (Apr 2) |
 

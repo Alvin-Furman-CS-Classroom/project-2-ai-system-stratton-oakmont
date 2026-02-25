@@ -395,3 +395,100 @@ def test_diversity_filter_deduplicates_identical_params():
     # Only one copy of the duplicate params should survive
     param_keys = [tuple(sorted(s.params.items())) for s in result]
     assert len(param_keys) == len(set(param_keys))
+
+
+# -----------------------------------------------------------------------------
+# Backtest input validation
+# -----------------------------------------------------------------------------
+
+
+def test_backtest_rejects_non_dataframe():
+    """Passing a non-DataFrame raises TypeError with a clear message."""
+    with pytest.raises(TypeError, match="must be a pandas DataFrame"):
+        backtest({"Close": [1, 2, 3]}, {"rsi_oversold": 30.0})
+
+
+def test_backtest_rejects_missing_columns():
+    """DataFrame missing required OHLCV columns raises ValueError."""
+    df = pd.DataFrame({"Close": [100.0] * 60, "Volume": [1000] * 60})
+    with pytest.raises(ValueError, match="missing required columns"):
+        backtest(df, {"rsi_oversold": 30.0})
+
+
+def test_backtest_rejects_too_few_rows():
+    """DataFrame with <= WARMUP_BARS rows raises ValueError."""
+    ohlcv = generate_synthetic_ohlcv(days=WARMUP_BARS, seed=10)
+    with pytest.raises(ValueError, match="more than"):
+        backtest(ohlcv, {"rsi_oversold": 30.0})
+
+
+def test_backtest_minimal_valid_ohlcv():
+    """WARMUP_BARS + 2 rows should produce at least 1 return."""
+    ohlcv = generate_synthetic_ohlcv(days=WARMUP_BARS + 2, seed=11)
+    returns, actions = backtest(ohlcv, {"rsi_oversold": 30.0})
+    assert len(returns) >= 1
+    assert len(actions) == len(returns)
+
+
+# -----------------------------------------------------------------------------
+# Evaluate candidate edge cases
+# -----------------------------------------------------------------------------
+
+
+def test_evaluate_candidate_all_hold_produces_zero_trades():
+    """Params that produce all HOLD actions result in num_trades=0."""
+    ohlcv = generate_synthetic_ohlcv(days=100, seed=12)
+    # RSI thresholds set impossibly: oversold at 0, overbought at 100 → nothing triggers
+    extreme_params = {
+        "rsi_oversold": 0.0,
+        "rsi_overbought": 100.0,
+        "macd_epsilon": 100.0,
+        "macd_strong_threshold": 200.0,
+        "ma_crossover_margin": 1.0,
+        "volume_high": 1e12,
+        "volume_surge_multiplier": 1e6,
+        "volume_average": 1e12,
+        "volatility_high": 0.0,
+        "volatility_low": 0.0,
+    }
+    result = evaluate_candidate(extreme_params, ohlcv)
+    assert isinstance(result, CandidateStrategy)
+    assert result.num_trades == 0
+    assert result.sharpe == 0.0
+
+
+def test_evaluate_candidate_metrics_are_finite():
+    """All returned metrics should be finite numbers, not NaN or Inf."""
+    ohlcv = generate_synthetic_ohlcv(days=120, seed=13)
+    result = evaluate_candidate({"rsi_oversold": 30.0, "rsi_overbought": 70.0}, ohlcv)
+    assert np.isfinite(result.sharpe)
+    assert np.isfinite(result.total_return)
+    assert np.isfinite(result.win_rate)
+    assert np.isfinite(result.max_drawdown)
+
+
+# -----------------------------------------------------------------------------
+# search_top_strategies error handling
+# -----------------------------------------------------------------------------
+
+
+def test_search_top_strategies_invalid_method_raises():
+    """Unknown method raises ValueError with a clear message."""
+    ohlcv = generate_synthetic_ohlcv(days=80, seed=14)
+    with pytest.raises(ValueError, match="Unknown search method"):
+        search_top_strategies(ohlcv, top_k=3, method="invalid")
+
+
+# -----------------------------------------------------------------------------
+# Beam vs A* comparison
+# -----------------------------------------------------------------------------
+
+
+def test_beam_and_astar_both_find_strategies():
+    """Both search methods should return non-empty results on the same data."""
+    ohlcv = generate_synthetic_ohlcv(days=120, seed=15)
+    beam_results = search_top_strategies(ohlcv, top_k=3, method="beam")
+    astar_results = search_top_strategies(ohlcv, top_k=3, method="astar")
+    assert len(beam_results) >= 1
+    assert len(astar_results) >= 1
+

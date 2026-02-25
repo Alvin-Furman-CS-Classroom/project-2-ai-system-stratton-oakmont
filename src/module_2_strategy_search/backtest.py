@@ -102,6 +102,28 @@ def sharpe_ratio(returns: np.ndarray, risk_free_rate: float = 0.0) -> float:
     return float(np.sqrt(252) * excess.mean() / excess.std())
 
 
+def _validate_ohlcv(ohlcv: pd.DataFrame) -> None:
+    """Validate that the OHLCV DataFrame has the required structure.
+
+    Raises:
+        TypeError: If ohlcv is not a pandas DataFrame.
+        ValueError: If required columns are missing or there are too few rows.
+    """
+    if not isinstance(ohlcv, pd.DataFrame):
+        raise TypeError(
+            f"ohlcv must be a pandas DataFrame, got {type(ohlcv).__name__}"
+        )
+    required = {"Open", "High", "Low", "Close", "Volume"}
+    missing = required - set(ohlcv.columns)
+    if missing:
+        raise ValueError(f"OHLCV DataFrame missing required columns: {sorted(missing)}")
+    if len(ohlcv) <= WARMUP_BARS:
+        raise ValueError(
+            f"OHLCV DataFrame needs more than {WARMUP_BARS} rows for backtesting, "
+            f"got {len(ohlcv)}"
+        )
+
+
 def backtest(
     ohlcv: pd.DataFrame,
     params: Dict[str, float],
@@ -114,13 +136,19 @@ def backtest(
     the action from bar N. Return = position * (close[t+1]/close[t] - 1).
 
     Args:
-        ohlcv: OHLCV DataFrame.
+        ohlcv: OHLCV DataFrame with columns Open, High, Low, Close, Volume.
         params: Params dict for Module 1 fact generation.
         rules: HornRules (defaults to default_trading_rules).
 
     Returns:
         (returns array, list of actions). Length = len(ohlcv) - 1 - WARMUP_BARS.
+
+    Raises:
+        TypeError: If ohlcv is not a pandas DataFrame.
+        ValueError: If required columns are missing or there are too few rows.
     """
+    _validate_ohlcv(ohlcv)
+
     from src.module_1_knowledge_base import evaluate_rules_on_indicators
 
     if rules is None:

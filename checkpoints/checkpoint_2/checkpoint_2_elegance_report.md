@@ -121,6 +121,7 @@ Module 2 demonstrates **professional-quality code** with clear structure, descri
 **Assessment:** Errors are handled thoughtfully with specific exceptions.
 
 **Strengths:**
+- `backtest()`: `_validate_ohlcv()` checks type (`TypeError`), required columns (`ValueError`), and minimum row count (`ValueError`) — descriptive messages
 - `load_ohlcv_csv`: `FileNotFoundError` for missing file; `ValueError` for missing columns
 - `load_ohlcv_yahoo`: `ValueError` for empty response
 - `search_top_strategies`: `ValueError` for unknown method with clear message
