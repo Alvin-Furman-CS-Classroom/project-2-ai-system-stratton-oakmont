@@ -79,8 +79,9 @@ Provide commands to run tests and describe any test data needed.
 | ---------- | ---- | ---------------- | ------ | -------- |
 | 1 | Feb 11 | Module 1 |  |  |
 | 2 | Feb 26 | Module 2 |  |  |
-| 3 | Mar 19 | Module 3, Module 4 |  |  |
-| 4 | Apr 2 | Module 5 |  |  |
+| 3 | Mar 19 | Module 3 |  |  |
+| 4 | Apr 2 | Module 4 |  |  |
+| 5 | Apr 16 | Module 5 |  |  |
 
 ## Required Workflow (Agent-Guided)
 
