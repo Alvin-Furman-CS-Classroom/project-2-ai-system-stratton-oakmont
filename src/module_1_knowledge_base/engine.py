@@ -1,3 +1,5 @@
+# This module implements the core forward-chaining inference engine for our rule-based trading system.
+
 from __future__ import annotations
 
 from dataclasses import dataclass
