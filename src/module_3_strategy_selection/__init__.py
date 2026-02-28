@@ -14,7 +14,7 @@ from .selection import (
     score_strategy,
     select_strategy,
 )
-from .reporting import summarize_selection
+from .reporting import print_selection_steps, summarize_selection
 
 __all__ = [
     "SelectionPreferences",
@@ -23,5 +23,6 @@ __all__ = [
     "score_strategy",
     "select_strategy",
     "summarize_selection",
+    "print_selection_steps",
 ]
 
