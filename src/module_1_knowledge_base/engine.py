@@ -1,3 +1,5 @@
+# This module implements the core forward-chaining inference engine for our rule-based trading system.
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -459,4 +461,3 @@ def format_inference_summary(result: InferenceResult) -> str:
         step_parts.append(f"{step.added_fact} via {step.rule_id} ({prems_str})")
     steps_str = "; ".join(step_parts)
     return f"{action_str} because: {steps_str}."
-

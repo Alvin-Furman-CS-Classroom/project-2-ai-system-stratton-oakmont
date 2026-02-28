@@ -13,7 +13,6 @@ from .engine import (
     Literal,
     default_trading_rules,
     evaluate_rules_on_indicators,
-    format_inference_summary,
     forward_chain,
     horn_rule_from_cnf_clause,
 )
@@ -30,7 +29,6 @@ __all__ = [
     "default_fact_definitions",
     "default_trading_rules",
     "evaluate_rules_on_indicators",
-    "format_inference_summary",
     "forward_chain",
     "horn_rule_from_cnf_clause",
     "indicators_to_facts",
