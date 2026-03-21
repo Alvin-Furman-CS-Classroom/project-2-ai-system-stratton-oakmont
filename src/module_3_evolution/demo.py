@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import pathlib
 import sys
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+from src.shared import CandidateStrategy
 
 # Ensure repo root is on sys.path so `import src...` works when running directly.
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -28,6 +30,39 @@ from src.module_3_evolution.evolution import (
     _uniform_crossover,
 )
 from src.shared.market_data import generate_synthetic_ohlcv
+
+# Treat params as "same" if all keys match within this tolerance.
+_PARAM_MATCH_TOL = 1e-5
+
+
+def _params_match_seed(
+    params: Dict[str, float], seeds: List[CandidateStrategy]
+) -> Optional[CandidateStrategy]:
+    """Return the seed strategy whose params match ``params``, or None."""
+    for seed in seeds:
+        sp = seed.params
+        if set(params.keys()) != set(sp.keys()):
+            continue
+        if all(abs(params[k] - sp[k]) <= _PARAM_MATCH_TOL for k in params):
+            return seed
+    return None
+
+
+def _describe_final_origin(
+    best: CandidateStrategy, seeds: List[CandidateStrategy]
+) -> str:
+    """Human-readable line: Module 2 vs GA-evolved (relative to this demo's seeds)."""
+    matched = _params_match_seed(best.params, seeds)
+    if matched is not None:
+        return (
+            "Origin: MODULE 2 — final parameters match a beam-search candidate from "
+            "Module 2 (same genome as one of the seeds)."
+        )
+    return (
+        "Origin: GA-GENERATED — final parameters are not identical to any Module 2 "
+        "seed; they were produced by the genetic algorithm (crossover/mutation), "
+        "starting from Module 2 seeds in this demo."
+    )
 
 
 def _param_diff(prev: Dict[str, float], curr: Dict[str, float]) -> List[str]:
@@ -111,7 +146,12 @@ def main() -> None:
     prev_best_params: Dict[str, float] | None = None
 
     print("=== GA Demo: Evolution Trace ===")
-    best: Any = None
+    print(
+        "Population is seeded from Module 2 beam search; the GA refines parameters.\n"
+        "At the end we report whether the winner still matches a Module 2 candidate "
+        "or is GA-evolved.\n"
+    )
+    best: CandidateStrategy | None = None
     for gen in range(config.generations):
         evaluated = _evaluate_population(population, ohlcv, rules=None)
         best = max(evaluated, key=lambda s: s.sharpe)
@@ -137,6 +177,8 @@ def main() -> None:
             print(f"    - {t}")
 
     print("\n=== Final best strategy ===")
+    assert best is not None
+    print(_describe_final_origin(best, seeds))
     print(f"Sharpe: {best.sharpe:.4f}")
     print("Params:")
     for k, v in sorted(best.params.items()):
