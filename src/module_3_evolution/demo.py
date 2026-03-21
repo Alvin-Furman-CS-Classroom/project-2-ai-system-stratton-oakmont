@@ -13,9 +13,7 @@ import pathlib
 import sys
 from typing import Dict, List, Optional
 
-from src.shared import CandidateStrategy
-
-# Ensure repo root is on sys.path so `import src...` works when running directly.
+# Repo root must be on sys.path BEFORE any `from src...` imports.
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -29,6 +27,7 @@ from src.module_3_evolution.evolution import (
     _tournament_select,
     _uniform_crossover,
 )
+from src.shared import CandidateStrategy
 from src.shared.market_data import generate_synthetic_ohlcv
 
 # Treat params as "same" if all keys match within this tolerance.

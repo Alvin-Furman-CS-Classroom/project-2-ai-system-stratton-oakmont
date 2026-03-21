@@ -19,6 +19,11 @@ import argparse
 import pathlib
 import sys
 
+# Repo root must be on sys.path before any `from src...` imports.
+_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 from src.module_3_evolution import GAConfig
 from src.module_3_strategy_selection import (
     SelectionPreferences,
@@ -30,16 +35,7 @@ from src.module_3_strategy_selection import (
 from src.shared.market_data import generate_synthetic_ohlcv
 
 
-def _ensure_repo_root_on_path() -> None:
-    root = pathlib.Path(__file__).resolve().parents[2]
-    root_str = str(root)
-    if root_str not in sys.path:
-        sys.path.insert(0, root_str)
-
-
 def main(argv: list[str] | None = None) -> None:
-    _ensure_repo_root_on_path()
-
     parser = argparse.ArgumentParser(
         description="Module 3: Module 2 + GA-from-scratch selection and explanation."
     )
