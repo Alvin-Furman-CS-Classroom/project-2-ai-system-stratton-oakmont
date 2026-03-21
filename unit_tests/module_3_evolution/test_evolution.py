@@ -57,3 +57,14 @@ def test_evolve_from_seeds_has_non_decreasing_best_sharpe():
     assert best_sharpe >= 0.0
     for strategy in evolved:
         assert _params_within_ranges(strategy.params, DEFAULT_PARAM_RANGES)
+
+
+def test_evolve_from_seeds_empty_uses_random_fallback():
+    """Empty seed list falls back to one random genome (see evolution module)."""
+    ohlcv = generate_synthetic_ohlcv(days=100, seed=3)
+    config = GAConfig(population_size=6, generations=2, seed=777)
+    evolved, summary = evolve_from_seeds([], ohlcv, config=config, top_k=3)
+    assert len(evolved) == 3
+    assert summary["generations"] == config.generations
+    for strategy in evolved:
+        assert _params_within_ranges(strategy.params, DEFAULT_PARAM_RANGES)
