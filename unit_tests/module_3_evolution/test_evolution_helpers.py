@@ -107,6 +107,27 @@ def test_build_next_generation_population_size_and_elitism(tiny_ranges):
     assert next_gen[0] == best_params or next_gen[1] == best_params
 
 
+def test_build_next_generation_caps_elitism_to_population_size(tiny_ranges):
+    """If elitism > population_size, generation size still matches population_size."""
+    rng = np.random.default_rng(6)
+    config = GAConfig(
+        population_size=2,
+        generations=1,
+        elitism=3,
+        tournament_size=2,
+        crossover_rate=0.5,
+        mutation_rate=0.3,
+        seed=6,
+        param_ranges=tiny_ranges,
+    )
+    evaluated = [
+        CandidateStrategy(params={"a": float(i), "b": 0.0}, sharpe=float(i))
+        for i in range(4)
+    ]
+    next_gen = _build_next_generation(evaluated, config, rng, tiny_ranges)
+    assert len(next_gen) == config.population_size
+
+
 def test_ga_config_default_param_ranges_is_copy():
     c1 = GAConfig()
     c2 = GAConfig()

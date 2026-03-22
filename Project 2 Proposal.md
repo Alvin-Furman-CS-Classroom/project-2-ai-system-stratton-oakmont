@@ -4,7 +4,7 @@
 
 This system helps users find profitable trading strategies for stocks and ETFs and manages risk when executing trades. It uses five AI modules that work together, each solving a specific part of the problem.
 
-**Phase 1: Finding Good Strategies** — The system needs rules for when to buy and sell. Module 1 represents these rules using propositional logic—simple "if-then" statements like "if price momentum is high AND volatility is low, then buy." Module 2 searches through thousands of possible rule variations to find ones that look promising, using A* and Beam Search to avoid testing every single combination. Module 3 takes the best candidates and improves them further using genetic algorithms—a technique that mimics evolution by combining successful strategies and introducing small changes over many generations.
+**Phase 1: Finding Good Strategies** — The system needs rules for when to buy and sell. Module 1 represents these rules using propositional logic—simple "if-then" statements like "if price momentum is high AND volatility is low, then buy." Module 2 searches through thousands of possible rule variations to find ones that look promising, using A* and Beam Search to avoid testing every single combination. Module 3 combines two candidate sources (Module 2 beam candidates and GA-from-random candidates), scores them under constraints, and selects one final strategy with a clear reason.
 
 **Phase 2: Trading Smartly** — Once good strategies exist, the system needs to apply them wisely. Module 4 uses supervised learning to classify market sentiment from news data, helping select the right strategy for current conditions. Module 5 uses reinforcement learning to decide position sizes, learning which allocations lead to the best long-term results.
 
@@ -26,7 +26,7 @@ The trading strategy problem naturally decomposes into five AI challenges, each 
 4. **Supervised Learning** — Market sentiment varies, and different strategies suit different conditions. A logistic regression classifier learns to recognize sentiment regimes from news features, predicting which market conditions will follow.
 5. **Reinforcement Learning** — Position sizing is a sequential decision problem with delayed rewards. RL learns optimal risk management through experience, adapting to context rather than following fixed rules.
 
-The modules follow both logical dependency (rules → parameters → evolution → classification → execution) and course schedule (early topics first). This ensures the system can be built incrementally, with each module tested before the next checkpoint.
+The modules follow both logical dependency (rules → parameters → evolution and selection → classification → execution) and course schedule (early topics first). This ensures the system can be built incrementally, with each module tested before the next checkpoint.
 
 ## Module Plan
 
@@ -34,7 +34,7 @@ The modules follow both logical dependency (rules → parameters → evolution �
 | ------ | -------- | ------ | ------- | ---------- | ---------- |
 | 1: Trading Rule Knowledge Base | Propositional Logic (Knowledge Bases, Inference, Forward Chaining) | Market indicators (RSI, MACD, MA20, MA50, Volume) and trading rules in CNF format | Trading action (BUY/SELL/HOLD), fired rules, inference chain | None | CP1 (Feb 11) |
 | 2: Strategy Parameter Search | Informed Search (A*, Beam Search, Heuristics) | Parameter ranges defining search space, historical market data | Top 10 candidate parameter configurations ranked by Sharpe ratio | Module 1 | CP2 (Feb 26) |
-| 3: Strategy Evolution Engine | Advanced Search (Genetic Algorithms) | Top 10 candidates from Module 2, historical data, GA parameters | Top 5 evolved strategies with performance metrics (Sharpe, return, win rate, max drawdown) | Module 2 | CP3 (Mar 19) |
+| 3: Strategy Evolution and Selection | Advanced Search (Genetic Algorithms), Multi-objective Selection | Top candidates from Module 2, historical data, GA parameters | Final selected strategy from combined pools (Module 2 + GA-from-random), with metrics and selection reason | Module 2 | CP3 (Mar 19) |
 | 4: Market Sentiment Classifier | Supervised Learning (Logistic Regression, Classification) | News sentiment data from Alpha Vantage API (scores, volume, topics, trend) | Sentiment regime (Bullish/Bearish/Neutral), confidence, recommended strategy | Module 3 | CP4 (Apr 2) |
 | 5: Adaptive Position Sizing Agent | Reinforcement Learning (MDP, Q-Learning) | Sentiment regime from Module 4, strategy metrics, volatility, capital | Position size (1-15%), Q-values, reasoning, risk assessment | Module 4 | CP5 (Apr 16) |
 

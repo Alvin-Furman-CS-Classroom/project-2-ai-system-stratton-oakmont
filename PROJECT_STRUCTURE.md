@@ -25,6 +25,7 @@ project-2-ai-system-stratton-oakmont/
 │   ├── module_1_knowledge_base/     # Propositional logic, CNF rules, inference
 │   ├── module_2_strategy_search/    # A*, Beam Search, parameter search
 │   ├── module_3_evolution/          # Genetic algorithm, fitness, backtest
+│   ├── module_3_strategy_selection/ # Unified candidate selection and reasoning
 │   ├── module_4_sentiment/          # Logistic regression, Alpha Vantage API
 │   ├── module_5_position_sizing/    # RL (MDP, Q-learning), position %
 │   ├── shared/                      # Data types, indicators, market data helpers
@@ -56,7 +57,7 @@ project-2-ai-system-stratton-oakmont/
 |--------|----------|--------|---------|------------|------------|
 | **1** | Propositional Logic (KB, inference, CNF) | Market indicators (RSI, MACD, MA20, MA50, Volume), CNF rules | BUY/SELL/HOLD, fired rules, inference chain | — | CP1 (Feb 11) |
 | **2** | Informed Search (A*, Beam, heuristics) | Parameter ranges, historical data | Top 10 candidates by Sharpe, params + explanation | 1 | CP1 (Feb 11) |
-| **3** | Genetic Algorithms | Top 10 from M2, full history, GA params | Top 5 evolved strategies, metrics, evolution summary | 1, 2 | CP2 (Feb 26) |
+| **3** | Genetic Algorithms + Strategy Selection | Top candidates from M2, full history, GA params | Final selected strategy from combined pools (M2 + GA-from-random), metrics, selection reason | 1, 2 | CP2 (Feb 26) |
 | **4** | Supervised Learning (logistic regression) | Alpha Vantage sentiment API data | Regime (Bullish/Bearish/Neutral), confidence, top headlines, strategy recommendation | 1, 2, 3 | CP3 (Mar 19) |
 | **5** | Reinforcement Learning (MDP, Q-learning) | Sentiment + confidence, strategy metrics, volatility, capital | Position % (1/5/10/15), Q-values, reasoning, risk assessment | 1–4 | CP4 (Apr 2) |
 
@@ -90,16 +91,16 @@ project-2-ai-system-stratton-oakmont/
 
 ---
 
-### Module 3: Strategy Evolution Engine  
+### Module 3: Strategy Evolution and Selection  
 **Owner:** _Assign one person_  
 **Checkpoint:** CP2 (Feb 26)
 
 | Item | Description |
 |------|-------------|
-| **Input** | Top 10 from M2, full history, GA params (pop=20, gen=100, mutation=0.1) |
-| **Output** | Top 5 evolved strategies + metrics (Sharpe, return, win rate, max drawdown), evolution summary |
-| **Deliverables** | `src/module_3_evolution/` (GA, fitness=backtest), `unit_tests/`, `integration_tests/module_3/` (M1+M2+M3) |
-| **Handoff** | Top 5 strategies + full metrics → Module 4. Define **strategy schema** (params, metrics, ID) so M4 can “recommend best strategy for regime.” |
+| **Input** | Top candidates from M2, full history, GA params (pop=20, gen=100, mutation=0.1) |
+| **Output** | Final selected strategy from merged pools (M2 + GA-from-random), plus metrics and reason |
+| **Deliverables** | `src/module_3_evolution/` (GA), `src/module_3_strategy_selection/` (selection + reasoning), `unit_tests/`, `integration_tests/module_3/` (M1+M2+M3) |
+| **Handoff** | Selected strategy + metrics + reason → Module 4. Define **strategy schema** so M4 can map market regime to a recommended strategy. |
 
 ---
 
@@ -189,7 +190,7 @@ Define these early so all modules use the same formats:
 |-----------|----------|--------|
 | M1 → M2, M3 | Rule structure, “evaluate rules on indicators” API | Code + types in `shared/` |
 | M2 → M3 | Top 10 candidates | List of `{params, sharpe, explanation}` |
-| M3 → M4 | Top 5 strategies | List of `{params, metrics, id}`; M4 picks by regime |
+| M3 → M4 | Selected strategy + reasoning | Object with `{params, metrics, reason, origin}` |
 | M4 → M5 | Regime, confidence, selected strategy | Same as M4 output; M5 consumes directly |
 
 ---

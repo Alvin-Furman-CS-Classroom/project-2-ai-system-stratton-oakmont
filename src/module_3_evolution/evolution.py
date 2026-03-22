@@ -115,7 +115,13 @@ def _build_next_generation(
     """Build the next generation of parameter configs."""
     # Elitism: keep top N
     evaluated_sorted = sorted(evaluated, key=lambda s: s.sharpe, reverse=True)
-    next_gen: List[Dict[str, float]] = [dict(s.params) for s in evaluated_sorted[: config.elitism]]
+    effective_elitism = max(
+        0,
+        min(config.elitism, config.population_size, len(evaluated_sorted)),
+    )
+    next_gen: List[Dict[str, float]] = [
+        dict(s.params) for s in evaluated_sorted[:effective_elitism]
+    ]
 
     # Fill the rest of the population
     while len(next_gen) < config.population_size:

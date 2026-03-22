@@ -1,32 +1,38 @@
 ## Project Context
 
-- System title: [Your System Title]
-- Theme: [Your Theme]
-- Proposal link or summary: [Your Proposal Link or Summary]
+- System: Intelligent Trading Agent: Strategy Discovery Through Search and Adaptive Risk Management
+- Team: Casen Shoemake, Kyler Bailey, Collin Riddle
+- Pipeline: Module 1 -> Module 2 -> Module 3 -> Module 4 -> Module 5
 
-**Module plan:**
+## Current Module Definitions
 
-[Your Module Plan Table copied from README.md]
+- Module 1: Rule-based trading inference (BUY/SELL/HOLD + inference trace)
+- Module 2: Strategy parameter search (Beam/A*) ranked by Sharpe
+- Module 3: Evolution and unified selection
+	- Uses Module 2 candidate pool
+	- Also runs GA from random initialization
+	- Combines both pools and selects one final strategy with reason
+- Module 4: Sentiment classifier
+- Module 5: Reinforcement learning position sizing
 
 ## Constraints
 
-- 5-6 modules total, each tied to course topics.
-- Each module must have clear inputs/outputs and tests.
-- Align module timing with the course schedule.
-
-## How the Agent Should Help
-
-- Draft plans for each module before coding.
-- Suggest clean architecture and module boundaries.
-- Identify missing tests and edge cases.
-- Review work against the rubric using the code-review skill.
+- Keep module boundaries clean and testable.
+- Prefer small, safe changes over broad rewrites.
+- Do not change README unless explicitly requested.
 
 ## Agent Workflow
 
-1. Ask for the current module spec from `README.md`.
-2. Produce a plan (use "Plan" mode if available).
-3. Wait for approval before writing or editing code.
-4. After implementation, run the code-review skill and list gaps.
+1. Confirm target module behavior from project docs and current code.
+2. Propose a short plan when work is non-trivial.
+3. Implement approved changes.
+4. Run relevant unit and integration tests.
+5. Report only meaningful findings and risks.
+
+## Useful Test Commands
+
+- Module 1 and 2: python -m pytest unit_tests/module_1_knowledge_base unit_tests/module_2_strategy_search integration_tests/module_2 -q
+- Module 3: python -m pytest unit_tests/module_3_evolution unit_tests/module_3_strategy_selection integration_tests/module_3 -q
 
 ## Key References
 
