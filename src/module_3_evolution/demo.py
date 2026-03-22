@@ -155,7 +155,11 @@ def main() -> None:
         evaluated = _evaluate_population(population, ohlcv, rules=None)
         best = max(evaluated, key=lambda s: s.sharpe)
 
-        print(f"\nGeneration {gen:02d}: best Sharpe = {best.sharpe:.4f}")
+        # Print both Sharpe and total return so we can track return evolution.
+        print(
+            f"\nGeneration {gen:02d}: best Sharpe = {best.sharpe:.4f}, "
+            f"return = {best.total_return:.2%}"
+        )
 
         if prev_best_params is not None:
             diffs = _param_diff(prev_best_params, best.params)
@@ -178,7 +182,7 @@ def main() -> None:
     print("\n=== Final best strategy ===")
     assert best is not None
     print(_describe_final_origin(best, seeds))
-    print(f"Sharpe: {best.sharpe:.4f}")
+    print(f"Sharpe: {best.sharpe:.4f}, return: {best.total_return:.2%}")
     print("Params:")
     for k, v in sorted(best.params.items()):
         print(f"  {k}: {v:.4f}")

@@ -79,7 +79,7 @@ def generate_synthetic_ohlcv(
     Uses a simple random walk for closes; volumes and OHLC are derived.
     """
     rng = np.random.default_rng(seed)
-    dates = pd.date_range(end=pd.Timestamp.today(), periods=days, freq="B")
+    dates = pd.date_range(start="2020-01-01", periods=days, freq="B")
 
     # Random walk for close
     returns = rng.normal(0.0005, 0.015, size=days)
