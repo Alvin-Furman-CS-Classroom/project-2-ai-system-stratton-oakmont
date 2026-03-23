@@ -11,7 +11,7 @@ Run:
 
 from __future__ import annotations
 
-from src.module_3_strategy_selection.demo import main
+from src.module_3_strategy_selection.demo_selection import main
 
 if __name__ == "__main__":
     main()
