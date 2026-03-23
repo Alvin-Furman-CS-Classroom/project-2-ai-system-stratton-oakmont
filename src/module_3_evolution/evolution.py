@@ -25,7 +25,7 @@ class GAConfig:
     """Configuration for the genetic algorithm."""
 
     population_size: int = 20
-    generations: int = 50
+    generations: int = 200
     crossover_rate: float = 0.8
     mutation_rate: float = 0.2
     elitism: int = 2
