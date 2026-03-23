@@ -22,7 +22,11 @@ from src.shared import CandidateStrategy, ParamRanges
 
 @dataclass(frozen=True)
 class GAConfig:
-    """Configuration for the genetic algorithm."""
+    """Configuration for the genetic algorithm.
+    
+       - Mutation rate favors exploration (0.2) to help escape local optima
+       - Crossover rate (0.8) promotes combining good traits
+    """
 
     population_size: int = 20
     generations: int = 200
