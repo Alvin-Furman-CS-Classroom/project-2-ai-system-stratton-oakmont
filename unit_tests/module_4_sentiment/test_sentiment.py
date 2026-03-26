@@ -66,7 +66,9 @@ def test_fetch_raises_on_note_rate_limit(mock_urlopen):
         fetch_news_sentiment(api_key="x")
 
 
-def test_missing_api_key():
+@patch("src.module_4_sentiment.alpha_vantage_client._load_dotenv_if_present")
+def test_missing_api_key(_mock_dotenv):
+    """Avoid loading a real .env file (which would supply a key and hit the network)."""
     with patch.dict("os.environ", {}, clear=True):
         with pytest.raises(AlphaVantageError, match="ALPHA_VANTAGE_API_KEY"):
             fetch_news_sentiment()
