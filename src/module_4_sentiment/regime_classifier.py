@@ -28,6 +28,11 @@ _REGIME_TO_INDEX = {
 }
 _INDEX_TO_REGIME = {v: k for k, v in _REGIME_TO_INDEX.items()}
 
+# Heuristic confidence/threshold constants.
+HEURISTIC_REGIME_THRESHOLD = 0.12
+HEURISTIC_CONFIDENCE_SCALE = 0.45
+HEURISTIC_NEUTRAL_CONFIDENCE_CAP = 0.6
+
 
 def _index_to_regime(i: int) -> MarketRegime:
     return _INDEX_TO_REGIME[int(i)]
@@ -44,14 +49,14 @@ def heuristic_regime(articles: list[NewsArticle]) -> tuple[MarketRegime, float]:
     if not articles:
         return MarketRegime.NEUTRAL, 0.0
 
-    thresh = 0.12
+    thresh = HEURISTIC_REGIME_THRESHOLD
     if mean_score > thresh:
-        conf = min(1.0, abs(mean_score) / 0.45)
+        conf = min(1.0, abs(mean_score) / HEURISTIC_CONFIDENCE_SCALE)
         return MarketRegime.BULLISH, float(conf)
     if mean_score < -thresh:
-        conf = min(1.0, abs(mean_score) / 0.45)
+        conf = min(1.0, abs(mean_score) / HEURISTIC_CONFIDENCE_SCALE)
         return MarketRegime.BEARISH, float(conf)
-    conf = max(0.0, 1.0 - abs(mean_score) / thresh) * 0.6
+    conf = max(0.0, 1.0 - abs(mean_score) / thresh) * HEURISTIC_NEUTRAL_CONFIDENCE_CAP
     return MarketRegime.NEUTRAL, float(conf)
 
 

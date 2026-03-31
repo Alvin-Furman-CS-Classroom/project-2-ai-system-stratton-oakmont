@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from src.shared.types import CandidateStrategy
 
-from .alpha_vantage_client import NewsArticle, fetch_news_sentiment
+from .alpha_vantage_client import AlphaVantageError, NewsArticle, fetch_news_sentiment
 from .regime_classifier import MarketRegime, SentimentRegimeClassifier
 from .strategy_recommendation import recommend_strategy_for_regime
 
@@ -23,6 +23,10 @@ class SentimentAnalysisResult:
     articles: tuple[NewsArticle, ...]
     recommended_strategy: CandidateStrategy | None
     recommendation_reason: str
+    m3_origin: str | None = None
+    m3_reason: str = ""
+    m3_summary: str = ""
+    fallback_note: str = ""
 
 
 def analyze_market_sentiment(
@@ -30,24 +34,36 @@ def analyze_market_sentiment(
     tickers: str,
     candidate_strategies: Sequence[CandidateStrategy],
     m3_selected: CandidateStrategy | None = None,
+    m3_context: Mapping[str, Any] | None = None,
     classifier: SentimentRegimeClassifier | None = None,
     news_limit: int = 50,
     api_key: str | None = None,
-    fit_classifier_from_feed: bool = True,
+    fit_classifier_from_feed: bool = False,
+    fallback_on_fetch_error: bool = True,
 ) -> SentimentAnalysisResult:
     """
     Fetch news for ``tickers``, classify regime, recommend a strategy from the pool.
 
-    When ``fit_classifier_from_feed`` is True (default), fits
-    ``SentimentRegimeClassifier`` on the returned articles when possible; otherwise
-    uses the passed ``classifier`` or a heuristic.
+    When ``fit_classifier_from_feed`` is True, fits ``SentimentRegimeClassifier``
+    on the returned articles when possible; otherwise uses the passed
+    ``classifier`` or a heuristic.
+
+    If news fetch fails and ``fallback_on_fetch_error`` is True, this returns a
+    deterministic neutral fallback instead of raising.
     """
-    news = fetch_news_sentiment(
-        tickers=tickers,
-        limit=news_limit,
-        api_key=api_key,
-    )
-    articles = list(news.feed)
+    fallback_note = ""
+    try:
+        news = fetch_news_sentiment(
+            tickers=tickers,
+            limit=news_limit,
+            api_key=api_key,
+        )
+        articles = list(news.feed)
+    except AlphaVantageError as exc:
+        if not fallback_on_fetch_error:
+            raise
+        articles = []
+        fallback_note = f"News fetch failed; used neutral fallback: {exc}"
 
     clf = classifier or SentimentRegimeClassifier()
     if fit_classifier_from_feed:
@@ -61,6 +77,13 @@ def analyze_market_sentiment(
         m3_selected=m3_selected,
     )
 
+    m3_origin = str(m3_context.get("origin")) if m3_context and m3_context.get("origin") is not None else None
+    m3_reason = str(m3_context.get("reason")) if m3_context and m3_context.get("reason") is not None else ""
+    m3_summary = str(m3_context.get("summary")) if m3_context and m3_context.get("summary") is not None else ""
+
+    if fallback_note:
+        reason = f"{reason} {fallback_note}".strip()
+
     return SentimentAnalysisResult(
         regime=regime,
         confidence=confidence,
@@ -69,4 +92,8 @@ def analyze_market_sentiment(
         articles=tuple(articles),
         recommended_strategy=strat,
         recommendation_reason=reason,
+        m3_origin=m3_origin,
+        m3_reason=m3_reason,
+        m3_summary=m3_summary,
+        fallback_note=fallback_note,
     )

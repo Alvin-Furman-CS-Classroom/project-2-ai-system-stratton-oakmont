@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from src.module_4_sentiment.alpha_vantage_client import AlphaVantageError
 from src.module_4_sentiment.alpha_vantage_client import NewsArticle, NewsSentimentResult
 from src.module_4_sentiment.pipeline import analyze_market_sentiment
 from src.module_4_sentiment.regime_classifier import MarketRegime
@@ -71,3 +72,57 @@ def test_analyze_market_sentiment_pipeline(mock_fetch):
     assert len(out.top_headlines) >= 1
     assert out.recommended_strategy is not None
     assert out.regime in MarketRegime
+
+
+@patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")
+def test_analyze_market_sentiment_default_no_fit_uses_heuristic(mock_fetch):
+    articles = [_feed_article(0.3, "Bullish") for _ in range(12)]
+    mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
+    pool = [_c("a", 0.5, -0.2)]
+
+    out = analyze_market_sentiment(
+        tickers="SPY",
+        candidate_strategies=pool,
+        api_key="test",
+    )
+
+    assert out.classification_method == "heuristic"
+
+
+@patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")
+def test_analyze_market_sentiment_fetch_fallback(mock_fetch):
+    mock_fetch.side_effect = AlphaVantageError("rate limit")
+    pool = [_c("a", 0.5, -0.2)]
+
+    out = analyze_market_sentiment(
+        tickers="SPY",
+        candidate_strategies=pool,
+        api_key="test",
+    )
+
+    assert out.regime is MarketRegime.NEUTRAL
+    assert out.classification_method == "heuristic"
+    assert "neutral fallback" in out.fallback_note.lower()
+    assert "neutral fallback" in out.recommendation_reason.lower()
+
+
+@patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")
+def test_analyze_market_sentiment_carries_m3_context(mock_fetch):
+    articles = [_feed_article(0.0, "Neutral") for _ in range(10)]
+    mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
+    pool = [_c("a", 0.5, -0.2)]
+
+    out = analyze_market_sentiment(
+        tickers="SPY",
+        candidate_strategies=pool,
+        api_key="test",
+        m3_context={
+            "origin": "module_2_search",
+            "reason": "Top composite score",
+            "summary": "M2 beat GA by sharpe",
+        },
+    )
+
+    assert out.m3_origin == "module_2_search"
+    assert out.m3_reason == "Top composite score"
+    assert out.m3_summary == "M2 beat GA by sharpe"
