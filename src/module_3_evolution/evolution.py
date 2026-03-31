@@ -10,7 +10,7 @@ Both use Module 2's evaluation pipeline (`evaluate_candidate`) as the fitness fu
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -34,7 +34,9 @@ class GAConfig:
     mutation_rate: float = 0.2
     elitism: int = 2
     tournament_size: int = 3
+    immigrant_fraction: float = 0.0
     seed: Optional[int] = None
+    restarts: int = 1
     param_ranges: ParamRanges = field(default_factory=lambda: DEFAULT_PARAM_RANGES.copy())
 
 
@@ -127,6 +129,13 @@ def _build_next_generation(
         dict(s.params) for s in evaluated_sorted[:effective_elitism]
     ]
 
+    # Optional diversity injection: disabled by default (immigrant_fraction=0.0).
+    remaining_slots = config.population_size - len(next_gen)
+    immigrant_count = int(round(config.immigrant_fraction * config.population_size))
+    immigrant_count = max(0, min(immigrant_count, remaining_slots))
+    for _ in range(immigrant_count):
+        next_gen.append(_random_params(rng, ranges))
+
     # Fill the rest of the population
     while len(next_gen) < config.population_size:
         # Parent selection
@@ -179,6 +188,13 @@ def _run_ga(
     return final_sorted, summary
 
 
+def _seed_for_restart(base_seed: Optional[int], restart_idx: int) -> Optional[int]:
+    """Derive deterministic per-restart seeds when a base seed is provided."""
+    if base_seed is None:
+        return None
+    return int(base_seed + restart_idx)
+
+
 def evolve_from_seeds(
     seeds: List[CandidateStrategy],
     ohlcv: Any,
@@ -199,26 +215,43 @@ def evolve_from_seeds(
         Tuple of (top_strategies, summary).
     """
     cfg = config or GAConfig()
+    restart_count = max(1, int(cfg.restarts))
 
-    # Start population with the seed params; if seeds are fewer than population size,
-    # fill with mutated versions of the seeds.
+    # Start population with seed params; if no seeds, start from one random genome.
     seed_params = [dict(s.params) for s in seeds]
     if not seed_params:
-        seed_params = [_random_params(np.random.default_rng(cfg.seed), cfg.param_ranges)]
+        fallback_seed = _seed_for_restart(cfg.seed, 0)
+        seed_params = [_random_params(np.random.default_rng(fallback_seed), cfg.param_ranges)]
 
-    population: List[Dict[str, float]] = []
-    rng = np.random.default_rng(cfg.seed)
+    best_sorted: List[CandidateStrategy] = []
+    best_summary: Dict[str, Any] = {}
+    best_sharpe = float("-inf")
+    selected_restart_idx = 0
 
-    while len(population) < cfg.population_size:
-        for p in seed_params:
-            if len(population) >= cfg.population_size:
-                break
-            mutated = _mutate(p, cfg.param_ranges, cfg.mutation_rate, rng)
-            population.append(mutated)
+    for restart_idx in range(restart_count):
+        restart_seed = _seed_for_restart(cfg.seed, restart_idx)
+        restart_cfg = replace(cfg, seed=restart_seed)
 
-    final_sorted, summary = _run_ga(population, ohlcv, rules, cfg)
+        population: List[Dict[str, float]] = []
+        rng = np.random.default_rng(restart_seed)
+        while len(population) < restart_cfg.population_size:
+            for p in seed_params:
+                if len(population) >= restart_cfg.population_size:
+                    break
+                mutated = _mutate(p, restart_cfg.param_ranges, restart_cfg.mutation_rate, rng)
+                population.append(mutated)
 
-    return final_sorted[:top_k], summary
+        final_sorted, summary = _run_ga(population, ohlcv, rules, restart_cfg)
+        run_best = float(summary.get("best_final_sharpe", float("-inf")))
+        if run_best > best_sharpe:
+            best_sharpe = run_best
+            best_sorted = final_sorted
+            best_summary = summary
+            selected_restart_idx = restart_idx
+
+    best_summary["restarts"] = restart_count
+    best_summary["selected_restart"] = selected_restart_idx
+    return best_sorted[:top_k], best_summary
 
 
 def evolve_randomly(
@@ -231,9 +264,28 @@ def evolve_randomly(
     """Evolve strategies starting from a random population."""
     cfg = config or GAConfig()
     ranges = param_ranges or cfg.param_ranges
+    restart_count = max(1, int(cfg.restarts))
 
-    rng = np.random.default_rng(cfg.seed)
-    population = [_random_params(rng, ranges) for _ in range(cfg.population_size)]
+    best_sorted: List[CandidateStrategy] = []
+    best_summary: Dict[str, Any] = {}
+    best_sharpe = float("-inf")
+    selected_restart_idx = 0
 
-    final_sorted, summary = _run_ga(population, ohlcv, rules, cfg)
-    return final_sorted[:top_k], summary
+    for restart_idx in range(restart_count):
+        restart_seed = _seed_for_restart(cfg.seed, restart_idx)
+        restart_cfg = replace(cfg, seed=restart_seed, param_ranges=ranges)
+
+        rng = np.random.default_rng(restart_seed)
+        population = [_random_params(rng, ranges) for _ in range(restart_cfg.population_size)]
+
+        final_sorted, summary = _run_ga(population, ohlcv, rules, restart_cfg)
+        run_best = float(summary.get("best_final_sharpe", float("-inf")))
+        if run_best > best_sharpe:
+            best_sharpe = run_best
+            best_sorted = final_sorted
+            best_summary = summary
+            selected_restart_idx = restart_idx
+
+    best_summary["restarts"] = restart_count
+    best_summary["selected_restart"] = selected_restart_idx
+    return best_sorted[:top_k], best_summary

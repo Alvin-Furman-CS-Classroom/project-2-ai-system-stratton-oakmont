@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import src.module_3_evolution.evolution as evo
 
 from src.module_3_evolution.evolution import (
     GAConfig,
@@ -125,6 +126,40 @@ def test_build_next_generation_caps_elitism_to_population_size(tiny_ranges):
         for i in range(4)
     ]
     next_gen = _build_next_generation(evaluated, config, rng, tiny_ranges)
+    assert len(next_gen) == config.population_size
+
+
+def test_build_next_generation_injects_configured_immigrants(tiny_ranges, monkeypatch):
+    rng = np.random.default_rng(7)
+    config = GAConfig(
+        population_size=10,
+        generations=1,
+        elitism=2,
+        tournament_size=2,
+        crossover_rate=0.0,
+        mutation_rate=0.0,
+        immigrant_fraction=0.3,
+        seed=7,
+        param_ranges=tiny_ranges,
+    )
+    evaluated = [
+        CandidateStrategy(params={"a": 1.0, "b": 0.0}, sharpe=float(i))
+        for i in range(6)
+    ]
+
+    calls = {"n": 0}
+
+    def fake_random_params(_rng, _ranges):
+        calls["n"] += 1
+        return {"a": 0.0, "b": -5.0}
+
+    monkeypatch.setattr(evo, "_random_params", fake_random_params)
+
+    next_gen = _build_next_generation(evaluated, config, rng, tiny_ranges)
+
+    expected_immigrants = 3  # round(0.3 * 10)
+    assert calls["n"] == expected_immigrants
+    assert next_gen.count({"a": 0.0, "b": -5.0}) == expected_immigrants
     assert len(next_gen) == config.population_size
 
 
