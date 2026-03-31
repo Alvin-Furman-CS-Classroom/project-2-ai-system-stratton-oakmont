@@ -9,7 +9,7 @@
 
 ## Summary
 
-Module 4 **implements** the proposed pipeline: **Alpha Vantage** news ingestion (`NEWS_SENTIMENT`), **feature extraction** from articles, **multinomial logistic regression** with a **heuristic fallback** when training data are sparse, **regime** output (Bullish / Bearish / Neutral) with confidence, and **regime-aware selection** of a `CandidateStrategy` from the Module 3 pool. **Inputs and outputs** are explicit (`SentimentAnalysisResult`, typed articles, env-based API key). **Tests** (unit + mocked integration) and **demos** (console, PNG/HTML reports) demonstrate behavior without requiring live API calls in CI. **Documentation** lives in module docstrings and this checkpoint narrative; **integration readiness** for Module 5 is clear: downstream receives regime, confidence, recommended strategy, and rationale.
+Module 4 **implements** the proposed pipeline: **Alpha Vantage** news ingestion (`NEWS_SENTIMENT`), **feature extraction** from articles, **multinomial logistic regression** with a **heuristic fallback** when training data are sparse, **regime** output (Bullish / Bearish / Neutral) with confidence, and **regime-aware selection** of a `CandidateStrategy` from the Module 3 pool. **Inputs and outputs** are explicit (`SentimentAnalysisResult`, typed articles, env-based API key). The pipeline also supports **graceful fetch-error fallback** and optional **Module 3 context passthrough** fields. **Tests** (unit + mocked integration) and **demos** (console, PNG/HTML reports) demonstrate behavior without requiring live API calls in CI. **Documentation** lives in module docstrings and this checkpoint narrative; **integration readiness** for Module 5 is clear: downstream receives regime, confidence, recommended strategy, and rationale.
 
 ---
 
@@ -25,8 +25,8 @@ Per preparation guide, each area is scored **0–4** (4 = exceeds expectations).
 
 ### 2. Inputs / Outputs — **Score: 4**
 
-- **Inputs:** `tickers` (and optional API params), `Sequence[CandidateStrategy]`, optional `m3_selected`, optional `SentimentRegimeClassifier`; environment `ALPHA_VANTAGE_API_KEY` or explicit `api_key`.  
-- **Outputs:** `SentimentAnalysisResult` with `regime`, `confidence`, `classification_method`, `top_headlines`, `articles`, `recommended_strategy`, `recommendation_reason`.  
+- **Inputs:** `tickers` (and optional API params), `Sequence[CandidateStrategy]`, optional `m3_selected`, optional `m3_context`, optional `SentimentRegimeClassifier`; environment `ALPHA_VANTAGE_API_KEY` or explicit `api_key`. Optional reliability controls include `fallback_on_fetch_error` and `fit_classifier_from_feed`.  
+- **Outputs:** `SentimentAnalysisResult` with `regime`, `confidence`, `classification_method`, `top_headlines`, `articles`, `recommended_strategy`, `recommendation_reason`, plus optional passthrough fields `m3_origin`, `m3_reason`, `m3_summary`, and `fallback_note`.  
 - **Next module feed:** Module 5 can consume regime, confidence, chosen strategy metrics, and volatility/capital from shared types (Module 5 stub documents intended RL inputs in the proposal).
 
 ### 3. Dependencies — **Score: 4**
@@ -44,7 +44,7 @@ Per preparation guide, each area is scored **0–4** (4 = exceeds expectations).
 ### 5. Documentation — **Score: 4**
 
 - Public symbols exported from `src/module_4_sentiment/__init__.py`; key functions have docstrings (`fetch_news_sentiment`, `analyze_market_sentiment`, classifier, demo entry).  
-- `.env.example`-documents API key variable; demo CLI documents `--offline`, `--open`, `--no-viz`.
+- API key variable is documented in module/client docstrings; demo CLI documents `--offline`, `--open`, `--no-viz`.
 
 ### 6. Integration Readiness — **Score: 4**
 
@@ -71,17 +71,15 @@ Per preparation guide, each area is scored **0–4** (4 = exceeds expectations).
 
 ## Mapping to AI System Rubric (Self-Assessment)
 
-| Official section              | Brief assessment |
-|-------------------------------|------------------|
-| **1.1 Functionality**         | API client + regime classifier + strategy pick + demo/visuals. **8 / 8** |
-| **1.2 Code Elegance**         | See `checkpoint_4_elegance_report.md`. **7 / 7** |
-| **1.3 Documentation**       | Docstrings + proposal alignment + demo help. **4 / 4** |
-| **1.4 I/O Clarity**         | Typed results and documented env vars. **3 / 3** |
-| **1.5 Topic Engagement**    | Supervised LR + API features + explainable regime/strategy mapping. **5 / 5** |
-| **2.1 Test Coverage**       | Unit + integration with mocks. **6 / 6** |
-| **2.2 Test Quality**        | Assertions on behavior and error paths. **5 / 5** |
-| **2.3 Test Organization**   | Mirrors `src/` layout. **4 / 4** |
-| **3.x GitHub**              | Team maintains commits/PRs per course policy. |
+- **1.1 Functionality:** API client + regime classifier + strategy pick + demo/visuals. **8 / 8**
+- **1.2 Code Elegance:** See `checkpoint_4_elegance_report.md`. **7 / 7**
+- **1.3 Documentation:** Docstrings + proposal alignment + demo help. **4 / 4**
+- **1.4 I/O Clarity:** Typed results and documented env vars. **3 / 3**
+- **1.5 Topic Engagement:** Supervised LR + API features + explainable regime/strategy mapping. **5 / 5**
+- **2.1 Test Coverage:** Unit + integration with mocks. **6 / 6**
+- **2.2 Test Quality:** Assertions on behavior and error paths. **5 / 5**
+- **2.3 Test Organization:** Mirrors `src/` layout. **4 / 4**
+- **3.x GitHub:** Team maintains commits/PRs per course policy.
 
 ---
 
@@ -91,12 +89,12 @@ Per preparation guide, each area is scored **0–4** (4 = exceeds expectations).
 
 - **News query:** e.g. tickers `"SPY"` and optional `limit` for `NEWS_SENTIMENT`.  
 - **Strategy pool:** list of `CandidateStrategy` from Module 3 (params + backtest metrics).  
-- **Optional:** Module 3’s unified pick for neutral-regime default.  
+- **Optional:** Module 3’s unified pick for neutral-regime default, and optional Module 3 context (`origin`, `reason`, `summary`) for traceability.  
 - **Credentials:** `ALPHA_VANTAGE_API_KEY` (or pass-through `api_key`).
 
 ### Output (what it produces)
 
-- **`SentimentAnalysisResult`:** regime enum, confidence, method (`logistic_regression` vs `heuristic`), headlines, full article tuples, **one** recommended `CandidateStrategy`, and a short **recommendation_reason** string.
+- **`SentimentAnalysisResult`:** regime enum, confidence, method (`logistic_regression` vs `heuristic`), headlines, full article tuples, **one** recommended `CandidateStrategy`, a short **recommendation_reason** string, optional Module 3 passthrough fields (`m3_origin`, `m3_reason`, `m3_summary`), and optional `fallback_note` when news fetch fallback is used.
 
 ### AI concepts
 
@@ -114,7 +112,7 @@ The course **participation requirement** is a **gate**: all team members must sh
 
 ## Action items before submission
 
-- [ ] Run `python -m pytest unit_tests/module_4_sentiment integration_tests/module_4 -q` and keep logs for evidence.  
+- [x] Run `python -m pytest unit_tests/module_4_sentiment integration_tests/module_4 -q` and keep logs for evidence.  
 - [ ] Run `python -m src.module_4_sentiment.demo --offline` (or live with key) and archive **PNG/HTML** from `data/` for the checkpoint.  
 - [ ] **Module 5:** wire `SentimentAnalysisResult` into the RL position-sizing API when implemented.
 

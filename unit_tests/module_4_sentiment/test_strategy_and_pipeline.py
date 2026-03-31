@@ -41,9 +41,9 @@ def test_recommend_neutral_uses_m3_when_present():
     assert s == m3
 
 
-def _feed_article(score: float, label: str) -> NewsArticle:
+def _feed_article(score: float, label: str, title: str = "Headline") -> NewsArticle:
     return NewsArticle(
-        title="Headline",
+        title=title,
         url="https://example.com",
         time_published="20240101T120000",
         summary="body",
@@ -72,6 +72,29 @@ def test_analyze_market_sentiment_pipeline(mock_fetch):
     assert len(out.top_headlines) >= 1
     assert out.recommended_strategy is not None
     assert out.regime in MarketRegime
+
+
+@patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")
+def test_analyze_market_sentiment_top_headlines_follow_regime(mock_fetch):
+    articles = [
+        _feed_article(-0.25, "Bearish", title=f"Bearish first {i}")
+        for i in range(5)
+    ] + [
+        _feed_article(0.55 + 0.01 * i, "Bullish", title=f"Bullish strong {i}")
+        for i in range(8)
+    ]
+    mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
+    pool = [_c("a", 0.5, -0.2)]
+
+    out = analyze_market_sentiment(
+        tickers="SPY",
+        candidate_strategies=pool,
+        api_key="test",
+    )
+
+    assert out.regime is MarketRegime.BULLISH
+    assert out.top_headlines
+    assert out.top_headlines[0].startswith("Bullish strong")
 
 
 @patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")

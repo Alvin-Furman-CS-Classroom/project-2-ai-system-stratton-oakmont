@@ -36,7 +36,11 @@ from src.module_4_sentiment.demo_visualization import (
     save_figure_png,
     write_html_report,
 )
-from src.module_4_sentiment.pipeline import SentimentAnalysisResult, analyze_market_sentiment
+from src.module_4_sentiment.pipeline import (
+    SentimentAnalysisResult,
+    analyze_market_sentiment,
+    select_top_headlines_for_regime,
+)
 from src.module_4_sentiment.regime_classifier import SentimentRegimeClassifier
 from src.module_4_sentiment.strategy_recommendation import recommend_strategy_for_regime
 from src.shared.types import CandidateStrategy
@@ -125,7 +129,7 @@ def _run_offline(pool: list[CandidateStrategy], m3_selected: CandidateStrategy) 
     clf.fit_from_articles(articles)
     regime, confidence, method = clf.predict_regime(articles)
     strat, reason = recommend_strategy_for_regime(regime, pool, m3_selected=m3_selected)
-    top_headlines = [a.title for a in articles[:5]]
+    top_headlines = select_top_headlines_for_regime(articles, regime, limit=5)
     return SentimentAnalysisResult(
         regime=regime,
         confidence=confidence,

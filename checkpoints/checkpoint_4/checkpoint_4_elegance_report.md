@@ -8,7 +8,7 @@
 
 ## Summary
 
-Module 4 code is **readable, modular, and consistent** with the rest of the repository: **small focused modules**, **dataclasses** for API and pipeline results, **stdlib HTTP** in the client (no unnecessary dependency), **sklearn** isolated in the classifier, and **clear separation** between data fetch, ML, business rules (strategy pick), and demo/visualization. Error handling for the external API is **explicit** (`AlphaVantageError`, payload checks). The demo stack is **thicker** by design (CLI, matplotlib, HTML) but stays in demo modules rather than polluting library code.
+Module 4 code is **readable, modular, and consistent** with the rest of the repository: **small focused modules**, **dataclasses** for API and pipeline results, **stdlib HTTP** in the client (no unnecessary dependency), **sklearn** isolated in the classifier, and **clear separation** between data fetch, ML, business rules (strategy pick), and demo/visualization. Error handling for the external API is **explicit** (`AlphaVantageError`, payload checks) and now includes a **deterministic neutral fallback** path in the pipeline. The demo stack is **thicker** by design (CLI, matplotlib, HTML) but stays in demo modules rather than polluting library code.
 
 ---
 
@@ -24,7 +24,7 @@ Names such as `fetch_news_sentiment`, `SentimentRegimeClassifier`, `MarketRegime
 
 - **Client:** single responsibility (HTTP + JSON + feed parsing).  
 - **Features / classifier:** training vs inference paths are separated; heuristic is a small pure function.  
-- **Pipeline:** thin orchestration composing fetch → fit/predict → recommend.  
+- **Pipeline:** thin orchestration composing fetch → fit/predict → recommend, with optional fetch-error fallback and optional Module 3 context passthrough.  
 - **Demo:** argparse, offline path, and visualization are isolated from importable library behavior.
 
 ### 3. Abstraction & Modularity — **Score: 4**
@@ -37,7 +37,7 @@ PEP 8–aligned formatting, type hints on public APIs, `from __future__ import a
 
 ### 5. Code Hygiene — **Score: 4**
 
-No obvious dead code in library modules; visualization helpers avoid embedding secrets. Tests mock network and environment where needed.
+No obvious dead code in library modules; visualization helpers avoid embedding secrets. Heuristic threshold values are named constants (no scattered magic numbers). Tests mock network and environment where needed.
 
 ### 6. Control Flow Clarity — **Score: 4**
 
@@ -49,7 +49,7 @@ Uses **dataclasses**, `Enum`, **sklearn** `Pipeline`, **numpy** for features, an
 
 ### 8. Error Handling — **Score: 4**
 
-`AlphaVantageError` wraps API error messages, rate-limit notes, JSON failures, and missing keys. Missing API key is detected before calling the network (when dotenv is not injected in tests). sklearn version differences are handled by using a current `LogisticRegression` signature (no deprecated `multi_class`).
+`AlphaVantageError` wraps API error messages, rate-limit notes, JSON failures, and missing keys. Missing API key is detected before calling the network (when dotenv is not injected in tests). The pipeline can now optionally convert fetch failures into a neutral fallback result for graceful degradation.
 
 ---
 

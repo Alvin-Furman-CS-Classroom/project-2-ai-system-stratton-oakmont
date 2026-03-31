@@ -29,6 +29,39 @@ class SentimentAnalysisResult:
     fallback_note: str = ""
 
 
+def select_top_headlines_for_regime(
+    articles: Sequence[NewsArticle],
+    regime: MarketRegime,
+    *,
+    limit: int = 5,
+) -> list[str]:
+    """Pick representative headlines based on detected regime."""
+    if limit <= 0:
+        return []
+
+    scored = [
+        (
+            float(a.overall_sentiment_score)
+            if a.overall_sentiment_score is not None
+            else 0.0,
+            a.title,
+        )
+        for a in articles
+        if a.title
+    ]
+    if not scored:
+        return []
+
+    if regime is MarketRegime.BULLISH:
+        ranked = sorted(scored, key=lambda x: x[0], reverse=True)
+    elif regime is MarketRegime.BEARISH:
+        ranked = sorted(scored, key=lambda x: x[0])
+    else:
+        ranked = sorted(scored, key=lambda x: abs(x[0]))
+
+    return [title for _score, title in ranked[:limit]]
+
+
 def analyze_market_sentiment(
     *,
     tickers: str,
@@ -70,7 +103,7 @@ def analyze_market_sentiment(
         clf.fit_from_articles(articles)
 
     regime, confidence, method = clf.predict_regime(articles)
-    top_headlines = [a.title for a in articles[:5]]
+    top_headlines = select_top_headlines_for_regime(articles, regime, limit=5)
     strat, reason = recommend_strategy_for_regime(
         regime,
         candidate_strategies,
