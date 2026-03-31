@@ -10,9 +10,9 @@ from src.module_4_sentiment.strategy_recommendation import recommend_strategy_fo
 from src.shared.types import CandidateStrategy
 
 
-def _c(params: str, sharpe: float, max_dd: float) -> CandidateStrategy:
+def _c(param_id: float, sharpe: float, max_dd: float) -> CandidateStrategy:
     return CandidateStrategy(
-        params={"id": params},
+        params={"id": param_id},
         sharpe=sharpe,
         total_return=0.1,
         max_drawdown=max_dd,
@@ -20,23 +20,23 @@ def _c(params: str, sharpe: float, max_dd: float) -> CandidateStrategy:
 
 
 def test_recommend_bullish_highest_sharpe():
-    pool = [_c("a", 0.5, -0.2), _c("b", 1.2, -0.5)]
+    pool = [_c(1.0, 0.5, -0.2), _c(2.0, 1.2, -0.5)]
     s, reason = recommend_strategy_for_regime(MarketRegime.BULLISH, pool)
     assert s is not None
-    assert s.params["id"] == "b"
+    assert s.params["id"] == 2.0
     assert "Sharpe" in reason
 
 
 def test_recommend_bearish_prefers_less_drawdown():
-    pool = [_c("a", 0.3, -0.4), _c("b", 0.4, -0.1)]
+    pool = [_c(1.0, 0.3, -0.4), _c(2.0, 0.4, -0.1)]
     s, _ = recommend_strategy_for_regime(MarketRegime.BEARISH, pool)
     assert s is not None
-    assert s.params["id"] == "b"
+    assert s.params["id"] == 2.0
 
 
 def test_recommend_neutral_uses_m3_when_present():
-    m3 = _c("pick", 0.5, -0.2)
-    pool = [m3, _c("other", 0.9, -0.3)]
+    m3 = _c(1.0, 0.5, -0.2)
+    pool = [m3, _c(2.0, 0.9, -0.3)]
     s, _ = recommend_strategy_for_regime(MarketRegime.NEUTRAL, pool, m3_selected=m3)
     assert s == m3
 
@@ -61,7 +61,7 @@ def test_analyze_market_sentiment_pipeline(mock_fetch):
         + [_feed_article(0.4, "Bullish") for _ in range(10)]
     )
     mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
-    pool = [_c("low", 0.2, -0.15), _c("high", 1.0, -0.4)]
+    pool = [_c(1.0, 0.2, -0.15), _c(2.0, 1.0, -0.4)]
     out = analyze_market_sentiment(
         tickers="SPY",
         candidate_strategies=pool,
@@ -84,7 +84,7 @@ def test_analyze_market_sentiment_top_headlines_follow_regime(mock_fetch):
         for i in range(8)
     ]
     mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
-    pool = [_c("a", 0.5, -0.2)]
+    pool = [_c(1.0, 0.5, -0.2)]
 
     out = analyze_market_sentiment(
         tickers="SPY",
@@ -101,7 +101,7 @@ def test_analyze_market_sentiment_top_headlines_follow_regime(mock_fetch):
 def test_analyze_market_sentiment_default_no_fit_uses_heuristic(mock_fetch):
     articles = [_feed_article(0.3, "Bullish") for _ in range(12)]
     mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
-    pool = [_c("a", 0.5, -0.2)]
+    pool = [_c(1.0, 0.5, -0.2)]
 
     out = analyze_market_sentiment(
         tickers="SPY",
@@ -115,7 +115,7 @@ def test_analyze_market_sentiment_default_no_fit_uses_heuristic(mock_fetch):
 @patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")
 def test_analyze_market_sentiment_fetch_fallback(mock_fetch):
     mock_fetch.side_effect = AlphaVantageError("rate limit")
-    pool = [_c("a", 0.5, -0.2)]
+    pool = [_c(1.0, 0.5, -0.2)]
 
     out = analyze_market_sentiment(
         tickers="SPY",
@@ -133,7 +133,7 @@ def test_analyze_market_sentiment_fetch_fallback(mock_fetch):
 def test_analyze_market_sentiment_carries_m3_context(mock_fetch):
     articles = [_feed_article(0.0, "Neutral") for _ in range(10)]
     mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
-    pool = [_c("a", 0.5, -0.2)]
+    pool = [_c(1.0, 0.5, -0.2)]
 
     out = analyze_market_sentiment(
         tickers="SPY",
