@@ -7,7 +7,7 @@ from typing import Any, Mapping, Sequence
 
 from src.shared.types import CandidateStrategy
 
-from .alpha_vantage_client import AlphaVantageError, NewsArticle, fetch_news_sentiment
+from .alpha_vantage_client import AlphaVantageError, NewsArticle, article_headline, fetch_news_sentiment
 from .regime_classifier import MarketRegime, SentimentRegimeClassifier
 from .strategy_recommendation import recommend_strategy_for_regime
 
@@ -44,10 +44,9 @@ def select_top_headlines_for_regime(
             float(a.overall_sentiment_score)
             if a.overall_sentiment_score is not None
             else 0.0,
-            a.title,
+            article_headline(a),
         )
         for a in articles
-        if a.title
     ]
     if not scored:
         return []
