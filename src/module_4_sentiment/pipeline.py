@@ -71,15 +71,17 @@ def analyze_market_sentiment(
     classifier: SentimentRegimeClassifier | None = None,
     news_limit: int = 50,
     api_key: str | None = None,
-    fit_classifier_from_feed: bool = False,
+    fit_classifier_from_feed: bool = True,
     fallback_on_fetch_error: bool = True,
 ) -> SentimentAnalysisResult:
     """
     Fetch news for ``tickers``, classify regime, recommend a strategy from the pool.
 
-    When ``fit_classifier_from_feed`` is True, fits ``SentimentRegimeClassifier``
-    on the returned articles when possible; otherwise uses the passed
-    ``classifier`` or a heuristic.
+    By default, this attempts to fit ``SentimentRegimeClassifier`` on the
+    returned articles when possible, so logistic regression is used whenever
+    sufficient labeled data are available. If fitting is skipped or impossible,
+    prediction falls back to a passed ``classifier`` (if already fitted) or the
+    heuristic path.
 
     If news fetch fails and ``fallback_on_fetch_error`` is True, this returns a
     deterministic neutral fallback instead of raising.

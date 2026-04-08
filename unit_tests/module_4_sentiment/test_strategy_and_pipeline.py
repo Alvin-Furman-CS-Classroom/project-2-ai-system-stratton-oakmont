@@ -98,8 +98,11 @@ def test_analyze_market_sentiment_top_headlines_follow_regime(mock_fetch):
 
 
 @patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")
-def test_analyze_market_sentiment_default_no_fit_uses_heuristic(mock_fetch):
-    articles = [_feed_article(0.3, "Bullish") for _ in range(12)]
+def test_analyze_market_sentiment_default_attempts_logistic_when_fit_possible(mock_fetch):
+    articles = (
+        [_feed_article(0.35 + 0.01 * i, "Bullish") for i in range(8)]
+        + [_feed_article(0.0, "Neutral") for _ in range(4)]
+    )
     mock_fetch.return_value = NewsSentimentResult(feed=articles, raw={"feed": []})
     pool = [_c(1.0, 0.5, -0.2)]
 
@@ -109,7 +112,7 @@ def test_analyze_market_sentiment_default_no_fit_uses_heuristic(mock_fetch):
         api_key="test",
     )
 
-    assert out.classification_method == "heuristic"
+    assert out.classification_method == "logistic_regression"
 
 
 @patch("src.module_4_sentiment.pipeline.fetch_news_sentiment")
