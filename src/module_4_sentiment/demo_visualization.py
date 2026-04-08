@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .alpha_vantage_client import article_headline
 from .pipeline import SentimentAnalysisResult
 from .regime_classifier import MarketRegime
 
@@ -18,12 +19,17 @@ _COLOR = {
 }
 
 
-def _short_title(title: str, max_words: int = 6) -> str:
-    """Keep just the first few words of a headline for a compact y-axis label."""
-    words = title.split()
-    if len(words) <= max_words:
-        return title
-    return " ".join(words[:max_words]) + "..."
+def _single_line_chart_headline(title: str, *, max_chars: int = 54) -> str:
+    """One line per bar so y-axis ticks do not overlap (full titles stay in HTML/console)."""
+    t = " ".join((title or "").split())
+    if not t:
+        return "(Untitled)"
+    if len(t) <= max_chars:
+        return t
+    cut = max_chars - 1
+    while cut > 0 and t[cut - 1].isspace():
+        cut -= 1
+    return t[:cut].rstrip() + "…"
 
 
 def _html_chart_section(img_b64: str) -> str:
@@ -46,9 +52,33 @@ def build_sentiment_demo_figure(result: SentimentAnalysisResult, *, subtitle: st
         if a.overall_sentiment_score is not None
     ]
 
-    fig = plt.figure(figsize=(12, 9))
-    gs = GridSpec(3, 2, figure=fig, height_ratios=[1.0, 1.4, 0.7],
-                  hspace=0.45, wspace=0.35, left=0.08, right=0.96, top=0.90, bottom=0.06)
+    max_bars = 15
+    barh_rows: tuple[list[float], list[str], int] | None = None
+    if scores:
+        rows = [
+            (float(a.overall_sentiment_score), article_headline(a))
+            for a in result.articles
+            if a.overall_sentiment_score is not None
+        ]
+        rows.sort(key=lambda t: abs(t[0]), reverse=True)
+        rows = rows[:max_bars]
+        rows.sort(key=lambda t: t[0])
+        plot_scores = [s for s, _ in rows]
+        y_labs = [_single_line_chart_headline(h) for _, h in rows]
+        total_scored = sum(1 for a in result.articles if a.overall_sentiment_score is not None)
+        barh_rows = (plot_scores, y_labs, total_scored)
+
+    n_bars = len(barh_rows[0]) if barh_rows else 0
+    if n_bars:
+        mid_ratio = 1.05 + n_bars * 0.095
+        fig_h = min(17.0, 5.2 + n_bars * 0.36)
+    else:
+        mid_ratio = 1.4
+        fig_h = 9.0
+
+    fig = plt.figure(figsize=(13, fig_h))
+    gs = GridSpec(3, 2, figure=fig, height_ratios=[1.0, mid_ratio, 0.7],
+                  hspace=0.40, wspace=0.35, left=0.30, right=0.96, top=0.90, bottom=0.06)
 
     fig.suptitle("Module 4 - Sentiment & regime", fontsize=14, fontweight="bold", y=0.97)
     if subtitle:
@@ -106,20 +136,8 @@ def build_sentiment_demo_figure(result: SentimentAnalysisResult, *, subtitle: st
 
     # --- Per-article scores (middle, full width) ---
     ax_art = fig.add_subplot(gs[1, :])
-    max_bars = 15
-    if scores:
-        scored = [
-            (float(a.overall_sentiment_score), a.title.replace("\n", " "))
-            for a in result.articles
-            if a.overall_sentiment_score is not None
-        ]
-        # Show the most extreme articles so the chart is informative
-        scored.sort(key=lambda t: abs(t[0]), reverse=True)
-        scored = scored[:max_bars]
-        scored.sort(key=lambda t: t[0])  # order bars low -> high
-
-        plot_scores = [s for s, _ in scored]
-        y_labels = [_short_title(t) for _, t in scored]
+    if barh_rows:
+        plot_scores, y_labels, total = barh_rows
         y_pos = np.arange(len(plot_scores))
         bar_colors = [
             _COLOR[MarketRegime.BEARISH] if s < -0.05
@@ -127,13 +145,14 @@ def build_sentiment_demo_figure(result: SentimentAnalysisResult, *, subtitle: st
             else _COLOR[MarketRegime.NEUTRAL]
             for s in plot_scores
         ]
-        ax_art.barh(y_pos, plot_scores, color=bar_colors, alpha=0.85, height=0.7, edgecolor="white")
+        ax_art.barh(y_pos, plot_scores, color=bar_colors, alpha=0.85, height=0.72, edgecolor="white")
         ax_art.set_yticks(y_pos)
         ax_art.set_yticklabels(y_labels, fontsize=8)
+        ax_art.tick_params(axis="y", pad=6)
         ax_art.axvline(0, color="black", linewidth=0.6)
         ax_art.set_xlabel("Sentiment score")
-        total = sum(1 for a in result.articles if a.overall_sentiment_score is not None)
         ax_art.set_title(f"Top {len(plot_scores)} articles by magnitude (of {total} total)")
+        ax_art.set_ylim(-0.6, len(plot_scores) - 0.4)
     else:
         ax_art.text(0.5, 0.5, "No articles to plot", ha="center", va="center")
 

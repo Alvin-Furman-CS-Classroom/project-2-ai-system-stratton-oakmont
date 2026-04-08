@@ -75,6 +75,20 @@ class NewsArticle:
     raw: dict[str, Any] = field(repr=False)
 
 
+def article_headline(article: NewsArticle) -> str:
+    """Human-readable headline for charts and lists: API title, or summary if title is empty."""
+    t = (article.title or "").strip()
+    if t:
+        return t.replace("\n", " ")
+    s = (article.summary or "").strip()
+    if not s:
+        return "(Untitled article)"
+    one = " ".join(s.replace("\n", " ").split())
+    if len(one) > 160:
+        return one[:157].rstrip() + "..."
+    return one
+
+
 @dataclass(frozen=True)
 class NewsSentimentResult:
     """Parsed NEWS_SENTIMENT response."""
