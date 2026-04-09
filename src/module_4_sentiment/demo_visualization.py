@@ -87,10 +87,10 @@ def build_sentiment_demo_figure(result: SentimentAnalysisResult, *, subtitle: st
     # --- Regime bars (left top) ---
     ax_reg = fig.add_subplot(gs[0, 0])
     regimes = [MarketRegime.BEARISH, MarketRegime.NEUTRAL, MarketRegime.BULLISH]
-    heights = [
-        result.confidence if result.regime is r else 0.08
-        for r in regimes
-    ]
+    if result.regime_scores:
+        heights = [float(result.regime_scores.get(r, 0.0)) for r in regimes]
+    else:
+        heights = [result.confidence if result.regime is r else 0.08 for r in regimes]
     colors = [_COLOR[r] for r in regimes]
     bars = ax_reg.bar(
         [r.value for r in regimes],
@@ -103,17 +103,18 @@ def build_sentiment_demo_figure(result: SentimentAnalysisResult, *, subtitle: st
     ax_reg.set_ylabel("Weight / confidence")
     ax_reg.set_title("Detected regime (bar height = model emphasis)")
     for bar, r in zip(bars, regimes):
+        value = float(bar.get_height())
+        ax_reg.text(
+            bar.get_x() + bar.get_width() / 2,
+            value + 0.02,
+            f"{value:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            fontweight="bold" if r is result.regime else "normal",
+        )
         if r is result.regime:
             bar.set_alpha(1.0)
-            ax_reg.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 0.02,
-                f"{result.confidence:.2f}",
-                ha="center",
-                va="bottom",
-                fontsize=10,
-                fontweight="bold",
-            )
         else:
             bar.set_alpha(0.35)
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from src.shared.types import CandidateStrategy
@@ -27,6 +27,7 @@ class SentimentAnalysisResult:
     m3_reason: str = ""
     m3_summary: str = ""
     fallback_note: str = ""
+    regime_scores: dict[MarketRegime, float] = field(default_factory=dict)
 
 
 def select_top_headlines_for_regime(
@@ -103,7 +104,8 @@ def analyze_market_sentiment(
     if fit_classifier_from_feed:
         clf.fit_from_articles(articles)
 
-    regime, confidence, method = clf.predict_regime(articles)
+    regime, regime_scores, method = clf.predict_regime_with_scores(articles)
+    confidence = float(regime_scores.get(regime, 0.0))
     top_headlines = select_top_headlines_for_regime(articles, regime, limit=5)
     strat, reason = recommend_strategy_for_regime(
         regime,
@@ -130,4 +132,5 @@ def analyze_market_sentiment(
         m3_reason=m3_reason,
         m3_summary=m3_summary,
         fallback_note=fallback_note,
+        regime_scores=regime_scores,
     )

@@ -116,18 +116,46 @@ class SentimentRegimeClassifier:
         Returns ``(regime, confidence, method)`` where method is
         ``\"logistic_regression\"`` or ``\"heuristic\"``.
         """
+        regime, scores, method = self.predict_regime_with_scores(articles)
+        return regime, float(scores[regime]), method
+
+    def predict_regime_with_scores(
+        self, articles: list[NewsArticle]
+    ) -> tuple[MarketRegime, dict[MarketRegime, float], str]:
+        """
+        Returns ``(regime, scores, method)`` where scores provides values for
+        all three classes (BEARISH/NEUTRAL/BULLISH), summing to ~1.0.
+        """
         if not articles:
-            return MarketRegime.NEUTRAL, 0.0, "heuristic"
+            scores = {
+                MarketRegime.BEARISH: 0.0,
+                MarketRegime.NEUTRAL: 1.0,
+                MarketRegime.BULLISH: 0.0,
+            }
+            return MarketRegime.NEUTRAL, scores, "heuristic"
 
         if self._pipe is None:
             r, c = heuristic_regime(articles)
-            return r, c, "heuristic"
+            remain = max(0.0, 1.0 - c)
+            split = remain / 2.0
+            scores = {
+                MarketRegime.BEARISH: split,
+                MarketRegime.NEUTRAL: split,
+                MarketRegime.BULLISH: split,
+            }
+            scores[r] = c
+            return r, scores, "heuristic"
 
         X = np.stack([article_feature_vector(a) for a in articles], axis=0)
         probs = self._pipe.predict_proba(X)
         mean_p = np.mean(probs, axis=0)
         classes = self._pipe.named_steps["clf"].classes_
-        idx = int(np.argmax(mean_p))
-        regime = _index_to_regime(int(classes[idx]))
-        confidence = float(mean_p[idx])
-        return regime, confidence, "logistic_regression"
+        scores = {
+            MarketRegime.BEARISH: 0.0,
+            MarketRegime.NEUTRAL: 0.0,
+            MarketRegime.BULLISH: 0.0,
+        }
+        for cls, p in zip(classes, mean_p):
+            scores[_index_to_regime(int(cls))] = float(p)
+        regime = max(scores, key=scores.get)
+        return regime, scores, "logistic_regression"
