@@ -11,10 +11,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+# Repo root must be on sys.path before any `from src...` imports.
+_ROOT = Path(__file__).resolve().parents[2]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 from src.module_1_knowledge_base import evaluate_rules_on_indicators
 from src.module_2_strategy_search import search_top_strategies
