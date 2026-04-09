@@ -19,17 +19,15 @@ _COLOR = {
 }
 
 
-def _single_line_chart_headline(title: str, *, max_chars: int = 54) -> str:
-    """One line per bar so y-axis ticks do not overlap (full titles stay in HTML/console)."""
+def _single_line_chart_headline(title: str, *, max_words: int = 6) -> str:
+    """Short y-axis label: first few words only (keeps chart readable)."""
     t = " ".join((title or "").split())
     if not t:
         return "(Untitled)"
-    if len(t) <= max_chars:
+    words = t.split(" ")
+    if len(words) <= max_words:
         return t
-    cut = max_chars - 1
-    while cut > 0 and t[cut - 1].isspace():
-        cut -= 1
-    return t[:cut].rstrip() + "…"
+    return " ".join(words[:max_words]) + "..."
 
 
 def _html_chart_section(img_b64: str) -> str:
